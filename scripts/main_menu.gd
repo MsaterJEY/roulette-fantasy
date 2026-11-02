@@ -1,0 +1,1054 @@
+class_name MainMenu
+extends Control
+## The menus, after the user's interface mockup: main menu over the tavern, Create Room (the
+## room settings), the lobby (pick your character, the bots take their seats, start), and Find
+## Room / Join by Code, which show what online play will look like (not built yet: the game is
+## you against bots). Settings (name, volume) and How to Play open over any screen.
+## Headless runs (smoke tests) go straight to the table.
+
+const TABLE_SCENE := "res://main.tscn"
+const W := 960.0
+
+## Which screen opens first: the results screen's "ค้นหาห้องใหม่" sets "find".
+static var start_screen := "home"
+
+var sfx: Sfx
+var _screens: Dictionary = {}  # name -> Control
+var _modal: Control
+var _toast: PanelContainer
+var _toast_label: Label
+var _badge_name: Label
+
+# Create Room
+var _room_name: LineEdit
+var _password: LineEdit
+var _summary: Label
+var _sections: VBoxContainer
+var _open_sections: Dictionary = {}  # section key -> open
+var _preset_buttons: Dictionary = {}  # preset id -> Button
+var _rings_before := 5  # rings to win before minigames were turned off
+
+# lobby
+var _lobby_title: Label
+var _lineup: HBoxContainer
+var _players_box: VBoxContainer
+var _players_head: Label
+var _pick_buttons: Dictionary = {}  # character id -> Button
+var _pick_info: Label
+var _chat_log: RichTextLabel
+## Ready check: everyone presses Ready (the bots after a moment); then the host starts, or in
+## "auto" rooms a countdown starts the game by itself.
+const AUTO_START_SECONDS := 3.0
+var _ready_flags: Array[bool] = []
+var _ready_btn: Button
+var _start_btn: Button
+var _lobby_gen := 0  # bumped on each lobby entry, so old bot timers do nothing
+var _countdown := -1.0  # auto start: seconds left, -1 = not counting
+var _starting := false
+
+
+func _ready() -> void:
+	if DisplayServer.get_name() == "headless":
+		get_tree().change_scene_to_file.call_deferred(TABLE_SCENE)
+		return
+	theme = UiStyle.make_theme()
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	GameConfig.load_settings()
+	sfx = Sfx.new()
+	add_child(sfx)
+
+	var scene := MenuScene.new()  # the four heroes playing round the table
+	scene.size = Vector2(W, 540)
+	add_child(scene)
+	var ids := CharacterDB.ids()
+	ids.shuffle()
+	scene.seat_all(ids)
+	var dim := ColorRect.new()
+	dim.color = Color(0.03, 0.02, 0.01, 0.15)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(dim)
+
+	_screens["home"] = _build_home()
+	_screens["find"] = _build_find()
+	_screens["join"] = _build_join()
+	_screens["create"] = _build_create()
+	_screens["lobby"] = _build_lobby()
+	for s: Control in _screens.values():
+		add_child(s)
+	_build_badge()
+	_build_toast()
+	show_screen(start_screen)
+	start_screen = "home"
+
+
+func _exit_tree() -> void:
+	Icons.clear()
+	PixelTex.clear()
+
+
+func show_screen(screen: String) -> void:
+	for k: String in _screens:
+		_screens[k].visible = k == screen
+	if screen == "lobby":
+		_enter_lobby()
+
+
+func _screen() -> Control:
+	var c := Control.new()
+	c.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return c
+
+
+func _title(parent: Control, text: String) -> void:
+	var t := MenuUi.title(text)
+	t.position = Vector2(0, 14)
+	parent.add_child(t)
+	t.resized.connect(func() -> void: t.position.x = (W - t.size.x) / 2)
+
+
+func _back(parent: Control, to := "home", text := "กลับ") -> Button:
+	var b := MenuUi.small_button("  ◀  " + text + "  ", "", 120)
+	b.position = Vector2(20, 488)
+	b.pressed.connect(show_screen.bind(to))
+	parent.add_child(b)
+	return b
+
+
+# ---------- main menu ----------
+
+func _build_home() -> Control:
+	var s := _screen()
+	var logo_plate := PanelContainer.new()
+	logo_plate.add_theme_stylebox_override("panel", MenuUi.panel_style(MenuUi.GOLD_DARK, 2, MenuUi.DIM))
+	logo_plate.position = Vector2(48, 34)
+	logo_plate.custom_minimum_size = Vector2(300, 0)
+	s.add_child(logo_plate)
+	var lbox := VBoxContainer.new()
+	logo_plate.add_child(lbox)
+	lbox.add_child(MenuUi.logo(44))
+	var tag := MenuUi.label("ทอยเต๋า · ใช้การ์ด · ตีหัวเพื่อนร่วมโต๊ะ", 12, UiStyle.TEXT_DIM)
+	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbox.add_child(tag)
+
+	var col := VBoxContainer.new()
+	col.position = Vector2(83, 200)
+	col.add_theme_constant_override("separation", 12)
+	s.add_child(col)
+	var create := MenuUi.big_button("swords", "สร้างห้อง", "CREATE ROOM · เล่นกับบอท", true)
+	create.pressed.connect(func() -> void:
+		sfx.play("select")
+		show_screen("create"))
+	col.add_child(create)
+	var find := MenuUi.big_button("cards", "ค้นหาห้อง", "FIND ROOM")
+	find.pressed.connect(show_screen.bind("find"))
+	col.add_child(find)
+	var join := MenuUi.big_button("dice", "ใส่เลขห้อง", "JOIN BY CODE")
+	join.pressed.connect(show_screen.bind("join"))
+	col.add_child(join)
+
+	var row := HBoxContainer.new()
+	row.position = Vector2(48, 452)
+	row.add_theme_constant_override("separation", 8)
+	s.add_child(row)
+	var settings := MenuUi.small_button(" ตั้งค่า ", "", 96)
+	settings.pressed.connect(_open_settings)
+	row.add_child(settings)
+	var howto := MenuUi.small_button(" วิธีเล่น ", "", 96)
+	howto.pressed.connect(_open_howto)
+	row.add_child(howto)
+	var quit := MenuUi.small_button(" ออกจากเกม ", "", 96)
+	quit.pressed.connect(func() -> void:  # through the sound player, so it quits cleanly
+		get_tree().root.propagate_notification(NOTIFICATION_WM_CLOSE_REQUEST))
+	row.add_child(quit)
+
+	var ver := MenuUi.label("โหมดออฟไลน์ · คุณกับบอท  ·  v0.3", 11, UiStyle.TEXT_DIM)
+	ver.position = Vector2(W - 210, 516)
+	s.add_child(ver)
+	return s
+
+
+# ---------- find room / join by code (online: not built yet) ----------
+
+func _build_find() -> Control:
+	var s := _screen()
+	_title(s, "ค้นหาห้อง")
+	var p := MenuUi.panel(Vector2(130, 74), Vector2(700, 380))
+	s.add_child(p)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 10)
+	p.add_child(box)
+	var head := HBoxContainer.new()
+	box.add_child(head)
+	for h: Array in [["ชื่อห้อง", 300], ["ผู้เล่น", 120], ["แหวน", 100], ["สถานะ", 120]]:
+		var l := MenuUi.label(h[0], 14, MenuUi.GOLD)
+		l.custom_minimum_size = Vector2(h[1], 0)
+		head.add_child(l)
+	box.add_child(HSeparator.new())
+	var empty := VBoxContainer.new()
+	empty.alignment = BoxContainer.ALIGNMENT_CENTER
+	empty.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(empty)
+	var ic := Icons.rect("cards", 56)
+	ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	ic.modulate = Color(1, 1, 1, 0.5)
+	empty.add_child(ic)
+	for line: Array in [["โหมดออนไลน์กำลังพัฒนา", 20, UiStyle.TEXT], ["ยังไม่มีห้องของผู้เล่นคนอื่นให้เข้า", 14, UiStyle.TEXT_DIM],
+			["ตอนนี้เล่นกับบอทได้ที่ \"สร้างห้อง\"", 14, UiStyle.TEXT_DIM]]:
+		var l := MenuUi.label(line[0], line[1], line[2])
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		empty.add_child(l)
+	var go := MenuUi.big_button("swords", "สร้างห้องแทน", "CREATE ROOM", true, 210)
+	go.position = Vector2(W - 230, 470)
+	go.pressed.connect(show_screen.bind("create"))
+	s.add_child(go)
+	_back(s)
+	return s
+
+
+func _build_join() -> Control:
+	var s := _screen()
+	_title(s, "ใส่เลขห้อง")
+	var p := MenuUi.panel(Vector2(250, 120), Vector2(460, 270))
+	s.add_child(p)
+	var box := VBoxContainer.new()
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 14)
+	p.add_child(box)
+	var hint := MenuUi.label("กรอกเลขห้อง 6 หลักที่เพื่อนส่งมา", 16, UiStyle.TEXT)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(hint)
+	var code := LineEdit.new()
+	code.max_length = 6
+	code.placeholder_text = "000000"
+	code.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	code.custom_minimum_size = Vector2(260, 58)
+	code.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	code.add_theme_font_size_override("font_size", 34)
+	code.add_theme_color_override("font_color", MenuUi.GOLD)
+	code.add_theme_stylebox_override("normal", UiStyle.panel(Color("120c08"), MenuUi.GOLD_DARK, 2, 8))
+	code.add_theme_stylebox_override("focus", UiStyle.panel(Color("120c08"), MenuUi.GOLD, 2, 8))
+	code.text_changed.connect(func(t: String) -> void:  # digits only
+		var digits := ""
+		for ch in t:
+			if ch >= "0" and ch <= "9":
+				digits += ch
+		if digits != t:
+			code.text = digits
+			code.caret_column = digits.length())
+	box.add_child(code)
+	var join := MenuUi.big_button("", "เข้าร่วมห้อง", "JOIN", true, 200)
+	join.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	join.pressed.connect(func() -> void:
+		if code.text.length() < 6:
+			toast("เลขห้องต้องมี 6 หลัก")
+		else:
+			toast("โหมดออนไลน์กำลังพัฒนา · ยังเข้าห้อง #%s ไม่ได้" % code.text))
+	code.text_submitted.connect(func(_t: String) -> void: join.pressed.emit())
+	box.add_child(join)
+	var note := MenuUi.label("(ออนไลน์เร็วๆ นี้ · ตอนนี้เล่นกับบอทได้ที่ \"สร้างห้อง\")", 12, UiStyle.TEXT_DIM)
+	note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(note)
+	_back(s)
+	return s
+
+
+# ---------- create room ----------
+# Presets on top (most players pick one and go), then the settings in folding sections, like
+# the user's design: room, match rules, balance (later), players and rights. The summary and
+# the Create button on the right.
+
+func _build_create() -> Control:
+	var s := _screen()
+	_title(s, "สร้างห้อง")
+	var pre := MenuUi.panel(Vector2(30, 62), Vector2(600, 96))
+	s.add_child(pre)
+	var prow := HBoxContainer.new()
+	prow.add_theme_constant_override("separation", 8)
+	pre.add_child(prow)
+	var group := ButtonGroup.new()
+	for id: String in GameConfig.PRESETS:
+		var info: Dictionary = GameConfig.PRESETS[id]
+		var b := MenuUi.choice_button("", group, GameConfig.preset == id)
+		b.custom_minimum_size = Vector2(137, 66)
+		var box := VBoxContainer.new()
+		box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		box.alignment = BoxContainer.ALIGNMENT_CENTER
+		box.add_theme_constant_override("separation", -2)
+		box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(box)
+		var top := HBoxContainer.new()
+		top.alignment = BoxContainer.ALIGNMENT_CENTER
+		top.add_theme_constant_override("separation", 6)
+		top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(top)
+		top.add_child(Icons.rect(info["icon"], 20))
+		top.add_child(MenuUi.label(info["name"], 15, UiStyle.TEXT))
+		var d := MenuUi.label(info["desc"], 10, UiStyle.TEXT_DIM)
+		d.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		d.custom_minimum_size = Vector2(128, 0)
+		box.add_child(d)
+		b.pressed.connect(_choose_preset.bind(id))
+		prow.add_child(b)
+		_preset_buttons[id] = b
+
+	var form := MenuUi.panel(Vector2(30, 166), Vector2(600, 312))
+	s.add_child(form)
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	form.add_child(scroll)
+	_sections = VBoxContainer.new()
+	_sections.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_sections.add_theme_constant_override("separation", 2)
+	scroll.add_child(_sections)
+
+	var sp := MenuUi.panel(Vector2(642, 62), Vector2(288, 416), MenuUi.GOLD)
+	s.add_child(sp)
+	var sbox := VBoxContainer.new()
+	sbox.add_theme_constant_override("separation", 8)
+	sp.add_child(sbox)
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 8)
+	sbox.add_child(head)
+	head.add_child(Icons.rect("star", 20))
+	head.add_child(MenuUi.label("สรุปก่อนสร้างห้อง", 17, MenuUi.GOLD))
+	sbox.add_child(HSeparator.new())
+	_summary = MenuUi.label("", 14)
+	_summary.add_theme_constant_override("line_spacing", 2)
+	_summary.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	sbox.add_child(_summary)
+	var go := MenuUi.big_button("swords", "สร้างห้อง", "CREATE", true, 258)
+	go.pressed.connect(_create_room)
+	sbox.add_child(go)
+	_back(s)
+	_fill_sections()
+	return s
+
+
+## (Re)build the folding sections from GameConfig; open ones stay open.
+func _fill_sections() -> void:
+	for c in _sections.get_children():
+		c.queue_free()
+	var room := _section("room", "cards", "ตั้งค่าห้อง", "ชื่อห้อง · จำนวนผู้เล่น · ประเภทห้อง · รหัสผ่าน")
+	_room_name = LineEdit.new()
+	_room_name.text = GameConfig.room_name
+	_room_name.max_length = 24
+	_room_name.custom_minimum_size = Vector2(300, 34)
+	_room_name.add_theme_stylebox_override("normal", UiStyle.panel(Color("120c08"), MenuUi.GOLD_DARK, 1, 6))
+	_room_name.text_changed.connect(func(t: String) -> void:
+		GameConfig.room_name = t.strip_edges()
+		_update_summary())
+	_setting(room, "ชื่อห้อง", _room_name)
+	_setting(room, "จำนวนผู้เล่น", _choices([["2 คน", 2], ["3 คน", 3], ["4 คน", 4], ["5 คน", 5], ["6 คน", 6]], GameConfig.players,
+		func(v: int) -> void: GameConfig.players = v))
+	var pass_row := HBoxContainer.new()
+	pass_row.add_theme_constant_override("separation", 8)
+	_setting(room, "ประเภทห้อง", _choices([["สาธารณะ", 0], ["ใส่รหัสผ่าน", 1]], 1 if GameConfig.room_type == "password" else 0,
+		func(v: int) -> void:
+			GameConfig.room_type = "password" if v == 1 else "public"
+			if v == 1 and GameConfig.room_password.length() != 4:
+				GameConfig.new_room_password()
+				_password.text = GameConfig.room_password
+			pass_row.get_parent().visible = v == 1))
+	_password = LineEdit.new()
+	_password.text = GameConfig.room_password
+	_password.max_length = 4
+	_password.placeholder_text = "0000"
+	_password.custom_minimum_size = Vector2(110, 34)
+	_password.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_password.add_theme_font_size_override("font_size", 18)
+	_password.add_theme_stylebox_override("normal", UiStyle.panel(Color("120c08"), MenuUi.GOLD_DARK, 1, 6))
+	_password.text_changed.connect(func(t: String) -> void:
+		var digits := ""
+		for ch in t:
+			if ch >= "0" and ch <= "9":
+				digits += ch
+		if digits != t:
+			_password.text = digits
+			_password.caret_column = digits.length()
+		GameConfig.room_password = digits
+		_update_summary())
+	pass_row.add_child(_password)
+	var reroll := MenuUi.small_button("  สุ่มใหม่  ")
+	reroll.pressed.connect(func() -> void:
+		GameConfig.new_room_password()
+		_password.text = GameConfig.room_password
+		_update_summary())
+	pass_row.add_child(reroll)
+	_setting(room, "รหัสผ่าน (4 หลัก)", pass_row).visible = GameConfig.room_type == "password"
+	room.add_child(_note("ตอนนี้เล่นกับบอท · ประเภทห้องและรหัสผ่านจะใช้จริงเมื่อเปิดโหมดออนไลน์"))
+
+	var rules := _section("rules", "swords", "กติกาการแข่งขัน", "เวลาเทิร์น · เงื่อนไขชนะ · การเริ่มเกม")
+	_setting(rules, "เวลาต่อเทิร์น", _choices([["15 วิ", 15], ["20 วิ", 20], ["30 วิ", 30], ["45 วิ", 45]],
+		GameConfig.turn_seconds, func(v: int) -> void: GameConfig.turn_seconds = v))
+	var rings := _choices([["3 วง", 3], ["5 วง", 5], ["7 วง", 7], ["ไม่ใช้แหวน", 0]], GameConfig.rings_to_win,
+		func(v: int) -> void: GameConfig.rings_to_win = v)
+	if not GameConfig.minigames:  # no minigame, no shards: rings can't be won
+		for b: Button in rings.get_children():
+			b.disabled = true
+			b.tooltip_text = "เปิดมินิเกมก่อน (เศษแหวนได้จากมินิเกม)"
+			if b.button_pressed:  # still show which one is on
+				b.add_theme_stylebox_override("disabled", UiStyle.panel(Color("5a4220"), MenuUi.GOLD_DARK, 2, 8))
+	_setting(rules, "ชนะเมื่อได้แหวน", rings)
+	_setting(rules, "การเริ่มเกม", _choices([["หัวห้องกดเริ่ม", 0], ["เริ่มเองเมื่อพร้อม", 1]],
+		1 if GameConfig.start_mode == "auto" else 0, func(v: int) -> void: GameConfig.start_mode = "auto" if v == 1 else "host"))
+	rules.add_child(_note("รอดเป็นคนสุดท้ายชนะเสมอ · \"ไม่ใช้แหวน\" = ชนะได้ด้วยการจัดการผู้เล่นเท่านั้น\nทุก %d รอบ เลือดสูงสุดและการ์ดในมือสูงสุดของทุกคนลดลง 1 (เกมไม่ยืดเยื้อ)" % GameController.SHRINK_ROUNDS))
+
+	var mini := _section("minigame", "dice", "มินิเกม", "เปิด/ปิดมินิเกม · ทายอันดับทุก 2 รอบ")
+	_setting(mini, "มินิเกม", _choices([["เปิด", 1], ["ปิด", 0]], 1 if GameConfig.minigames else 0,
+		func(v: int) -> void: _set_minigames(v == 1)))
+	mini.add_child(_note("มินิเกมให้เศษแหวน (ทางเดียวที่ได้แหวน) และเงินตามอันดับ
+ปิดมินิเกม = ไม่ใช้แหวนไปด้วย ชนะได้ด้วยการจัดการผู้เล่นเท่านั้น"))
+
+	var balance := _section("balance", "defense", "สมดุลและความยาก", "HP เริ่มต้น · ไอเทม · เหตุการณ์สุ่ม", true)
+	balance.add_child(_note("ระยะถัดไป: ตั้ง HP เริ่มต้น เปิด/ปิดไอเทม และเหตุการณ์สุ่มระหว่างเกม\nตอนนี้ใช้ค่ามาตรฐาน: HP 4 · ไอเทมครบทุกใบ · ไม่มีเหตุการณ์สุ่ม"))
+
+	var who := _section("players", "star", "ผู้เล่นและสิทธิ์", "เลือกตัวละคร · ผู้ชม · การเข้าระหว่างเกม · AFK")
+	who.add_child(_note("เลือกตัวละคร: เลือกซ้ำกับคนอื่นได้ (บอทจะกระจายไปตัวอื่นก่อน)"))
+	who.add_child(_note("ระยะถัดไป: ผู้ชม · การเข้าระหว่างเกม · ให้บอทเล่นแทนเมื่อ AFK"))
+	_update_summary()
+
+
+## A folding section: a header (icon, title, the settings it holds, ▼) that opens a body.
+## `later`: its settings come in a later phase (shown, marked).
+func _section(key: String, icon: String, title: String, subtitle: String, later := false) -> VBoxContainer:
+	var head := Button.new()
+	head.flat = true
+	head.custom_minimum_size = Vector2(0, 54)
+	head.add_theme_stylebox_override("hover", UiStyle.panel(Color(1, 1, 1, 0.04), Color(0, 0, 0, 0), 0, 6))
+	head.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	_sections.add_child(head)
+	var row := HBoxContainer.new()
+	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	row.offset_left = 6
+	row.offset_right = -10
+	row.add_theme_constant_override("separation", 12)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	head.add_child(row)
+	var ic := Icons.rect(icon, 24)
+	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	if later:
+		ic.modulate = Color(1, 1, 1, 0.5)
+	row.add_child(ic)
+	var texts := VBoxContainer.new()
+	texts.alignment = BoxContainer.ALIGNMENT_CENTER
+	texts.add_theme_constant_override("separation", -3)
+	texts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	texts.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(texts)
+	texts.add_child(MenuUi.label(title, 16, UiStyle.TEXT_DIM if later else UiStyle.TEXT))
+	texts.add_child(MenuUi.label(subtitle, 11, UiStyle.TEXT_DIM))
+	if later:
+		var tag := MenuUi.label("ระยะถัดไป", 11, MenuUi.GOLD_DARK.lightened(0.2))
+		tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(tag)
+	var arrow := MenuUi.label("", 13, MenuUi.GOLD)
+	arrow.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(arrow)
+	var body := VBoxContainer.new()
+	body.add_theme_constant_override("separation", 8)
+	var pad := MarginContainer.new()
+	pad.add_theme_constant_override("margin_left", 42)
+	pad.add_theme_constant_override("margin_bottom", 10)
+	pad.add_child(body)
+	_sections.add_child(pad)
+	var line := HSeparator.new()
+	line.modulate = Color(1, 1, 1, 0.4)
+	_sections.add_child(line)
+	var show_body := func(open: bool) -> void:
+		pad.visible = open
+		arrow.text = "▲" if open else "▼"
+		_open_sections[key] = open
+	show_body.call(_open_sections.get(key, false))
+	head.pressed.connect(func() -> void: show_body.call(not pad.visible))
+	return body
+
+
+## A label + control row inside a section; returns the row.
+func _setting(body: VBoxContainer, text: String, control: Control) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	var l := MenuUi.label(text, 14, MenuUi.GOLD)
+	l.custom_minimum_size = Vector2(130, 0)
+	row.add_child(l)
+	row.add_child(control)
+	body.add_child(row)
+	return row
+
+
+## A label + control pair in a two-column grid (the Settings box).
+func _form_row(grid: GridContainer, text: String, control: Control) -> void:
+	var l := MenuUi.label(text, 16, MenuUi.GOLD)
+	l.custom_minimum_size = Vector2(150, 0)
+	grid.add_child(l)
+	grid.add_child(control)
+
+
+func _note(text: String) -> Label:
+	var l := MenuUi.label(text, 12, UiStyle.TEXT_DIM)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size = Vector2(480, 0)
+	return l
+
+
+## A row of toggles; `on_pick(value)` when one is chosen (the room becomes "custom").
+func _choices(options: Array, current: int, on_pick: Callable) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	var group := ButtonGroup.new()
+	for o: Array in options:
+		var b := MenuUi.choice_button(o[0], group, o[1] == current)
+		var chars := (o[0] as String).length()
+		b.custom_minimum_size = Vector2(130.0 if chars > 8 else (90.0 if chars > 4 else 66.0), 32)
+		b.pressed.connect(func() -> void:
+			on_pick.call(o[1])
+			_mark_custom())
+		row.add_child(b)
+	return row
+
+
+func _choose_preset(id: String) -> void:
+	sfx.play("select")
+	GameConfig.apply_preset(id)
+	_preset_buttons[id].button_pressed = true
+	if id == "custom":  # open the settings for those who want the detail
+		_open_sections["room"] = true
+		_open_sections["rules"] = true
+	_fill_sections()
+
+
+## Minigames on/off. Off also turns rings off (their shards only come from minigames); back
+## on brings the rings setting back.
+func _set_minigames(on: bool) -> void:
+	GameConfig.minigames = on
+	if not on and GameConfig.rings_to_win > 0:
+		_rings_before = GameConfig.rings_to_win
+		GameConfig.rings_to_win = 0
+	elif on and GameConfig.rings_to_win == 0:
+		GameConfig.rings_to_win = _rings_before
+	_fill_sections.call_deferred()  # not now: the pressed button is one of the rows rebuilt
+
+
+## A setting was changed by hand: the room no longer matches a preset.
+func _mark_custom() -> void:
+	if GameConfig.preset != "custom":
+		GameConfig.preset = "custom"
+		_preset_buttons["custom"].button_pressed = true
+	_update_summary()
+
+
+func _update_summary() -> void:
+	if _summary == null:
+		return
+	var name := GameConfig.room_name if GameConfig.room_name != "" else "ห้องของฉัน"
+	_summary.text = "\n".join([
+		"แบบห้อง: %s" % GameConfig.PRESETS[GameConfig.preset]["name"],
+		"ชื่อห้อง: %s" % name,
+		"ผู้เล่น: %d คน (คุณ + บอท %d)" % [GameConfig.players, GameConfig.players - 1],
+		"ประเภท: %s" % ("ใส่รหัสผ่าน (%s)" % GameConfig.room_password if GameConfig.room_type == "password" else "สาธารณะ"),
+		"เวลาต่อเทิร์น: %d วินาที" % GameConfig.turn_seconds,
+		"ชนะเมื่อ: แหวน %d วง หรือรอดคนสุดท้าย" % GameConfig.rings_to_win if GameConfig.rings_to_win > 0
+			else "ชนะเมื่อ: รอดเป็นคนสุดท้าย (ไม่ใช้แหวน)",
+		"มินิเกม: %s" % ("เปิด · ทุก 2 รอบ" if GameConfig.minigames else "ปิด"),
+		"ทุก %d รอบ: เลือด/การ์ดในมือสูงสุด -1" % GameController.SHRINK_ROUNDS,
+		"เริ่มเกม: %s" % ("เริ่มเองเมื่อทุกคนพร้อม" if GameConfig.start_mode == "auto" else "หัวห้องกดเริ่ม"),
+		"ตัวละคร: เลือกซ้ำกันได้",
+		"HP เริ่มต้น 4 · ไอเทมครบ"])
+
+
+func _create_room() -> void:
+	if GameConfig.room_type == "password" and GameConfig.room_password.length() != 4:
+		_open_sections["room"] = true
+		_fill_sections()
+		toast("รหัสผ่านต้องมี 4 หลัก")
+		return
+	sfx.play("confirm")
+	if GameConfig.room_name == "":
+		GameConfig.room_name = "ห้องของฉัน"
+	GameConfig.new_room_code()
+	GameConfig.roll_bot_names()
+	GameConfig.characters.clear()
+	show_screen("lobby")
+
+
+# ---------- lobby ----------
+
+func _build_lobby() -> Control:
+	var s := _screen()
+	var plate := PanelContainer.new()
+	var ps := UiStyle.panel(Color(0.07, 0.05, 0.04, 0.92), MenuUi.GOLD_DARK, 1, 14)
+	ps.content_margin_left = 22
+	ps.content_margin_right = 22
+	plate.add_theme_stylebox_override("panel", ps)
+	plate.position = Vector2(0, 12)
+	s.add_child(plate)
+	_lobby_title = MenuUi.label("", 20, MenuUi.GOLD)
+	plate.add_child(_lobby_title)
+	plate.resized.connect(func() -> void: plate.position.x = (W - plate.size.x) / 2)
+
+	var line := MenuUi.panel(Vector2(20, 60), Vector2(610, 292))
+	s.add_child(line)
+	_lineup = HBoxContainer.new()
+	_lineup.alignment = BoxContainer.ALIGNMENT_CENTER
+	_lineup.add_theme_constant_override("separation", 10)
+	line.add_child(_lineup)
+
+	var pick := MenuUi.panel(Vector2(20, 362), Vector2(610, 112))
+	s.add_child(pick)
+	var pbox := VBoxContainer.new()
+	pbox.add_theme_constant_override("separation", 6)
+	pick.add_child(pbox)
+	pbox.add_child(MenuUi.label("เลือกตัวละครของคุณ", 14, MenuUi.GOLD))
+	var prow := HBoxContainer.new()
+	prow.add_theme_constant_override("separation", 8)
+	pbox.add_child(prow)
+	var group := ButtonGroup.new()
+	for c: Dictionary in CharacterDB.all():
+		var b := MenuUi.choice_button(" " + c["name"], group, false)
+		b.icon = Icons.get_icon(c["icon"])
+		b.add_theme_constant_override("icon_max_width", 22)
+		b.custom_minimum_size = Vector2(140, 36)
+		b.pressed.connect(_pick.bind(c["id"]))
+		prow.add_child(b)
+		_pick_buttons[c["id"]] = b
+	_pick_info = MenuUi.label("", 12, UiStyle.TEXT_DIM)
+	pbox.add_child(_pick_info)
+
+	var pl := MenuUi.panel(Vector2(645, 60), Vector2(295, 232))  # room for 6 players
+	s.add_child(pl)
+	var plbox := VBoxContainer.new()
+	plbox.add_theme_constant_override("separation", 6)
+	pl.add_child(plbox)
+	_players_head = MenuUi.label("", 15, MenuUi.GOLD)
+	plbox.add_child(_players_head)
+	plbox.add_child(HSeparator.new())
+	_players_box = VBoxContainer.new()
+	_players_box.add_theme_constant_override("separation", 4)
+	plbox.add_child(_players_box)
+
+	var chat := MenuUi.panel(Vector2(645, 300), Vector2(295, 174))
+	s.add_child(chat)
+	var cbox := VBoxContainer.new()
+	cbox.add_theme_constant_override("separation", 6)
+	chat.add_child(cbox)
+	cbox.add_child(MenuUi.label("ข้อความในห้อง", 14, MenuUi.GOLD))
+	_chat_log = RichTextLabel.new()
+	_chat_log.bbcode_enabled = true
+	_chat_log.scroll_following = true
+	_chat_log.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_chat_log.add_theme_font_size_override("normal_font_size", 12)
+	cbox.add_child(_chat_log)
+	var say := LineEdit.new()
+	say.placeholder_text = "พิมพ์ข้อความ แล้วกด Enter"
+	say.max_length = 60
+	say.add_theme_stylebox_override("normal", UiStyle.panel(Color("120c08"), MenuUi.GOLD_DARK, 1, 6))
+	say.text_submitted.connect(func(t: String) -> void:
+		if t.strip_edges() != "":
+			_chat("[color=#ffd76a]%s:[/color] %s" % [GameConfig.player_name, t.strip_edges().replace("[", "(")])
+		say.clear())
+	cbox.add_child(say)
+
+	_back(s, "create", "ออกจากห้อง")
+	_ready_btn = MenuUi.small_button("", "", 150)
+	_ready_btn.custom_minimum_size.y = 52
+	_ready_btn.position = Vector2(W - 382, 480)
+	_ready_btn.add_theme_font_size_override("font_size", 17)
+	_ready_btn.pressed.connect(func() -> void: _set_ready(0, not _ready_flags[0]))
+	s.add_child(_ready_btn)
+	_start_btn = MenuUi.big_button("swords", "เริ่มเกม", "START GAME", true, 200)
+	_start_btn.position = Vector2(W - 220, 480)
+	_start_btn.custom_minimum_size.y = 52
+	_start_btn.pressed.connect(_start_game)
+	s.add_child(_start_btn)
+	return s
+
+
+func _enter_lobby() -> void:
+	_lobby_gen += 1
+	_countdown = -1.0
+	_lobby_title.text = "%s   ·   ห้อง #%s%s" % [GameConfig.room_name, GameConfig.room_code,
+		"   ·   รหัสผ่าน %s" % GameConfig.room_password if GameConfig.room_type == "password" else ""]
+	_ready_flags.clear()
+	_ready_flags.resize(GameConfig.players)
+	_ready_flags.fill(false)
+	_chat_log.clear()
+	_chat("[color=#b9a98a]คุณสร้างห้อง \"%s\" (หัวห้อง) · %s[/color]" % [GameConfig.room_name,
+		GameConfig.PRESETS[GameConfig.preset]["name"]])
+	var mine := GameConfig.characters[0] if GameConfig.characters.size() == GameConfig.players else CharacterDB.ids()[0]
+	_pick(mine, true)
+	var gen := _lobby_gen
+	for i in range(1, GameConfig.players):
+		_chat("[color=#b9a98a]%s (บอท) เข้าห้อง[/color]" % GameConfig.names[i])
+		get_tree().create_timer(randf_range(0.8, 2.6)).timeout.connect(func() -> void:
+			if gen == _lobby_gen and _screens["lobby"].visible:
+				_set_ready(i, true))
+	_update_ready()
+
+
+## Seat `i` is (not) ready; everyone ready lets the host start, or starts the countdown.
+func _set_ready(i: int, on: bool) -> void:
+	if _starting or _ready_flags[i] == on:
+		return
+	_ready_flags[i] = on
+	_chat("[color=%s]%s %s[/color]" % ["#7fc97f" if on else "#e0a070", GameConfig.names[i],
+		"พร้อมแล้ว" if on else "ยกเลิกพร้อม"])
+	if i == 0:
+		sfx.play("select")
+	_update_ready()
+
+
+func _all_ready() -> bool:
+	return not _ready_flags.has(false)
+
+
+func _update_ready() -> void:
+	for i in _players_box.get_child_count():
+		var tag: Label = _players_box.get_child(i).get_child(2)
+		tag.text = ("หัวห้อง · " if i == 0 else "บอท · ") + ("พร้อม" if _ready_flags[i] else "รอ...")
+		tag.add_theme_color_override("font_color", Color("7fc97f") if _ready_flags[i] else UiStyle.TEXT_DIM)
+	var me := _ready_flags[0]
+	_ready_btn.text = "ยกเลิกพร้อม" if me else "พร้อม"
+	var all := _all_ready()
+	if GameConfig.start_mode == "auto":
+		_start_btn.disabled = true
+		if all and _countdown < 0.0:
+			_countdown = AUTO_START_SECONDS
+			_chat("[color=#ffd76a]ทุกคนพร้อม · เริ่มใน %d วินาที[/color]" % int(AUTO_START_SECONDS))
+		elif not all and _countdown >= 0.0:
+			_countdown = -1.0
+			_chat("[color=#e0a070]ยกเลิกการนับถอยหลัง[/color]")
+	else:
+		_start_btn.disabled = not all
+	_start_label()
+
+
+func _start_label() -> void:
+	var main: Label = _start_btn.get_child(0).get_child(-1).get_child(0)
+	var sub: Label = _start_btn.get_child(0).get_child(-1).get_child(1)
+	if GameConfig.start_mode == "auto":
+		main.text = "เริ่มใน %d" % ceili(_countdown) if _countdown >= 0.0 else "เริ่มอัตโนมัติ"
+		sub.text = "AUTO START · รอทุกคนพร้อม" if _countdown < 0.0 else "AUTO START"
+	else:
+		main.text = "เริ่มเกม"
+		sub.text = "START GAME" if _all_ready() else "รอทุกคนกดพร้อม"
+
+
+func _process(delta: float) -> void:
+	if _countdown < 0.0 or _starting:
+		return
+	_countdown -= delta
+	if _countdown <= 0.0:
+		_countdown = -1.0
+		_start_game()
+	else:
+		_start_label()
+
+
+## You chose `id`: the bots are seated again around it, the lineup and player list redrawn.
+## Changing character takes your Ready back.
+func _pick(id: String, quiet := false) -> void:
+	if not quiet:
+		sfx.play("select")
+		if _ready_flags.size() > 0 and _ready_flags[0]:
+			_set_ready(0, false)
+	GameConfig.fill_seats(id)
+	_pick_buttons[id].button_pressed = true
+	var c := CharacterDB.get_character(id)
+	_pick_info.text = "อาวุธ: %s  ·  ท่าโจมตี: %s  ·  ท่าสังหาร: %s" % [c["weapon"], c["attack"], c["finisher"]]
+	for child in _lineup.get_children():
+		child.queue_free()
+	for child in _players_box.get_children():  # gone now: _update_ready() counts the rows
+		_players_box.remove_child(child)
+		child.queue_free()
+	var n := GameConfig.players
+	var slot_w := minf(180.0, (590.0 - (n - 1) * 10.0) / n)
+	for i in n:
+		_lineup.add_child(_seat_slot(i, slot_w))
+		_players_box.add_child(_player_row(i))
+	_players_head.text = "ผู้เล่น (%d/%d)" % [n, n]
+	if _ready_flags.size() == n:
+		_update_ready()
+
+
+func _seat_slot(i: int, w: float) -> Control:
+	var c := CharacterDB.get_character(GameConfig.characters[i])
+	var box := VBoxContainer.new()
+	box.custom_minimum_size = Vector2(w, 0)
+	box.add_theme_constant_override("separation", 2)
+	box.add_child(CharacterPreview.new(c["id"], Vector2(w, 200), i == 0))
+	var plate := PanelContainer.new()
+	plate.add_theme_stylebox_override("panel", UiStyle.panel(Color("1d3a5c") if i == 0 else Color("2b1d12"),
+		MenuUi.GOLD if i == 0 else MenuUi.GOLD_DARK, 2 if i == 0 else 1, 6))
+	box.add_child(plate)
+	var inner := VBoxContainer.new()
+	inner.add_theme_constant_override("separation", -2)
+	plate.add_child(inner)
+	var who := MenuUi.label(("★ " if i == 0 else "") + GameConfig.names[i], 15, MenuUi.GOLD if i == 0 else UiStyle.TEXT)
+	who.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	who.clip_text = true
+	inner.add_child(who)
+	var what := MenuUi.label(c["name"] + ("" if i == 0 else " · บอท"), 11, UiStyle.TEXT_DIM)
+	what.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	what.clip_text = true  # 6 seats: narrow plates
+	inner.add_child(what)
+	return box
+
+
+func _player_row(i: int) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var c := CharacterDB.get_character(GameConfig.characters[i])
+	row.add_child(Icons.rect(c["icon"], 22))
+	var name := MenuUi.label(GameConfig.names[i], 14, MenuUi.GOLD if i == 0 else UiStyle.TEXT)
+	name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name.clip_text = true
+	row.add_child(name)
+	row.add_child(MenuUi.label("", 12))  # ready tag, filled by _update_ready()
+	return row
+
+
+func _chat(bbcode: String) -> void:
+	_chat_log.append_text(bbcode + "\n")
+
+
+func _start_game() -> void:
+	if _starting:
+		return
+	_starting = true
+	sfx.play("confirm")
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	var fade := ColorRect.new()
+	fade.color = Color(0, 0, 0, 0)
+	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(fade)
+	var t := create_tween()
+	t.tween_property(fade, "color:a", 1.0, 0.45)
+	t.tween_callback(func() -> void: get_tree().change_scene_to_file(TABLE_SCENE))
+
+
+# ---------- badge, toast, settings, how to play ----------
+
+func _build_badge() -> void:
+	var b := Button.new()
+	b.position = Vector2(W - 206, 12)
+	b.custom_minimum_size = Vector2(190, 46)
+	b.add_theme_stylebox_override("normal", MenuUi.panel_style(MenuUi.GOLD_DARK, 2, MenuUi.PANEL))
+	b.add_theme_stylebox_override("hover", MenuUi.panel_style(MenuUi.GOLD, 2, MenuUi.PANEL))
+	b.add_theme_stylebox_override("pressed", MenuUi.panel_style(MenuUi.GOLD, 2, MenuUi.PANEL))
+	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	b.tooltip_text = "ตั้งค่าชื่อผู้เล่น"
+	b.pressed.connect(_open_settings)
+	add_child(b)
+	var row := HBoxContainer.new()
+	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	row.offset_left = 10
+	row.offset_right = -10
+	row.add_theme_constant_override("separation", 8)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(row)
+	var star := Icons.rect("star", 26)
+	star.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(star)
+	var texts := VBoxContainer.new()
+	texts.alignment = BoxContainer.ALIGNMENT_CENTER
+	texts.add_theme_constant_override("separation", -3)
+	texts.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	texts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(texts)
+	_badge_name = MenuUi.label(GameConfig.player_name, 15, MenuUi.GOLD)
+	_badge_name.clip_text = true
+	texts.add_child(_badge_name)
+	texts.add_child(MenuUi.label("ออฟไลน์", 11, UiStyle.TEXT_DIM))
+
+
+func _build_toast() -> void:
+	_toast = PanelContainer.new()
+	_toast.add_theme_stylebox_override("panel", MenuUi.panel_style(MenuUi.GOLD, 2))
+	_toast.visible = false
+	_toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_toast)
+	_toast_label = MenuUi.label("", 15)
+	_toast.add_child(_toast_label)
+	_toast.resized.connect(func() -> void: _toast.position = Vector2((W - _toast.size.x) / 2, 420))
+
+
+func toast(text: String) -> void:
+	_toast_label.text = text
+	_toast.size = Vector2.ZERO
+	_toast.visible = true
+	_toast.modulate.a = 1.0
+	var t := _toast.create_tween()
+	t.tween_interval(2.2)
+	t.tween_property(_toast, "modulate:a", 0.0, 0.4)
+	t.tween_callback(func() -> void: _toast.visible = false)
+
+
+## A box over a dark veil; returns the box to fill. Closing frees it.
+func _open_modal(title: String, box_size: Vector2) -> VBoxContainer:
+	if _modal:
+		_modal.queue_free()
+	_modal = Control.new()
+	_modal.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(_modal)
+	var veil := ColorRect.new()
+	veil.color = Color(0, 0, 0, 0.6)
+	veil.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_modal.add_child(veil)
+	var p := MenuUi.panel((Vector2(W, 540) - box_size) / 2, box_size, MenuUi.GOLD)
+	_modal.add_child(p)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 12)
+	p.add_child(box)
+	var head := MenuUi.label("◆  " + title + "  ◆", 20, MenuUi.GOLD)
+	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(head)
+	return box
+
+
+func _close_modal() -> void:
+	if _modal:
+		_modal.queue_free()
+		_modal = null
+
+
+func _open_settings() -> void:
+	var box := _open_modal("ตั้งค่า", Vector2(440, 270))
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 14)
+	grid.add_theme_constant_override("v_separation", 16)
+	box.add_child(grid)
+	var name := LineEdit.new()
+	name.text = GameConfig.player_name
+	name.max_length = 16
+	name.custom_minimum_size = Vector2(260, 34)
+	name.add_theme_stylebox_override("normal", UiStyle.panel(Color("120c08"), MenuUi.GOLD_DARK, 1, 6))
+	_form_row(grid, "ชื่อผู้เล่น", name)
+	var vol_row := HBoxContainer.new()
+	var vol := HSlider.new()
+	vol.min_value = 0
+	vol.max_value = 100
+	vol.value = roundf(GameConfig.sfx_volume * 100)
+	vol.custom_minimum_size = Vector2(200, 30)
+	vol_row.add_child(vol)
+	var vol_label := MenuUi.label("%d%%" % vol.value, 14)
+	vol_row.add_child(vol_label)
+	vol.value_changed.connect(func(v: float) -> void:
+		vol_label.text = "%d%%" % v
+		GameConfig.sfx_volume = v / 100.0
+		GameConfig.apply_volume())
+	vol.drag_ended.connect(func(_changed: bool) -> void: sfx.play("select"))
+	_form_row(grid, "ระดับเสียง", vol_row)
+	box.add_child(Control.new())
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 12)
+	box.add_child(row)
+	var old_volume := GameConfig.sfx_volume
+	var save := MenuUi.small_button("  บันทึก  ", "", 120)
+	save.pressed.connect(func() -> void:
+		var n := name.text.strip_edges()
+		GameConfig.player_name = n if n != "" else "ผู้เล่น"
+		GameConfig.save_settings()
+		_badge_name.text = GameConfig.player_name
+		if GameConfig.names.size() > 0:
+			GameConfig.names[0] = GameConfig.player_name
+		if _screens["lobby"].visible:
+			_pick(GameConfig.characters[0], true)
+		_close_modal()
+		toast("บันทึกการตั้งค่าแล้ว"))
+	row.add_child(save)
+	var cancel := MenuUi.small_button("  ยกเลิก  ", "", 120)
+	cancel.pressed.connect(func() -> void:
+		GameConfig.sfx_volume = old_volume
+		GameConfig.apply_volume()
+		_close_modal())
+	row.add_child(cancel)
+
+
+## How to Play: real screenshots from the game (assets/howto, made with tests/shot_shop.gd
+## and tests/shot_seats.gd), one step per page with a short caption.
+const HOWTO := [
+	["01_opening", "เริ่มเกม", "ทุกคนทอยเต๋า 3 ลูก แต้มมากสุดได้เล่นก่อน
+ป้ายผู้เล่นด้านบนจะเรียงตามลำดับการเล่น"],
+	["02_noshop", "ป้ายผู้เล่น", "ด้านบนคือป้ายของทุกคน: เลือด แหวน เศษแหวน จำนวนการ์ด และไอคอนสถานะ
+ป้ายสีฟ้าที่มีดาวคือป้ายของคุณ"],
+	["03_roll", "ทอยเต๋า", "ตาของคุณเริ่มด้วยการกด \"ทอยลูกเต๋า\"
+ได้เงิน = ผลรวม ÷ 2 และจั่วการ์ดเพิ่ม 2 ใบ"],
+	["04_shop", "ร้านค้า", "ช่วงเตรียมตัว กด \"ร้านค้า\" เพื่อซื้อการ์ด
+เศษแหวน 2 ชิ้น แลกเป็นแหวนได้ 1 วง"],
+	["05_target", "โจมตี", "ช่วงต่อสู้ กดการ์ดโจมตี แล้วคลิกตัวละครที่เรืองแสงสีส้ม
+โดนแล้วเสียเลือด 1 (หมดเลือด = ตกรอบ)"],
+	["06_defend", "ป้องกัน", "เมื่อมีคนโจมตีคุณ จะถามว่าใช้การ์ดป้องกันไหม
+กด \"ป้องกัน\" แล้วไม่เสียเลือด"],
+	["07_self", "การ์ดช่วยเหลือและคำสาป", "การ์ดเขียวช่วยตัวเอง (ฟื้นเลือด ล้างคำสาป) การ์ดม่วงสาปคนอื่น (ห้ามซื้อ ตาบอด ...)
+ไอคอนบนหัวตัวละครและบนป้ายบอกว่าใครโดนอะไรอยู่"],
+	["08_minigame", "มินิเกม", "ทุก 2 รอบ ทายของที่อยู่ในอันดับ 1–100
+ได้คะแนนมาก = ได้เศษแหวนและเงินมาก"],
+	["09_result", "ชนะ!", "สะสมแหวนครบตามที่ตั้งห้องไว้ หรือเป็นคนสุดท้ายที่รอด
+จบเกมแล้วดูอันดับ คะแนน และเล่นต่อได้ทันที"],
+]
+
+
+func _open_howto(page := 0) -> void:
+	var box := _open_modal("วิธีเล่น  ·  %d / %d" % [page + 1, HOWTO.size()], Vector2(800, 524))
+	box.add_theme_constant_override("separation", 4)
+	var step: Array = HOWTO[page]
+	var frame := PanelContainer.new()
+	var fs := UiStyle.panel(Color.BLACK, MenuUi.GOLD_DARK, 2, 6)
+	fs.set_content_margin_all(2)
+	frame.add_theme_stylebox_override("panel", fs)
+	frame.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	box.add_child(frame)
+	var pic := TextureRect.new()
+	pic.texture = load("res://assets/howto/%s.png" % step[0])
+	pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	pic.custom_minimum_size = Vector2(560, 315)
+	pic.mouse_filter = Control.MOUSE_FILTER_STOP
+	pic.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	pic.gui_input.connect(func(e: InputEvent) -> void:  # click the picture for the next step
+		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+			_open_howto((page + 1) % HOWTO.size()))
+	frame.add_child(pic)
+	var head := MenuUi.label("%d. %s" % [page + 1, step[1]], 18, MenuUi.GOLD)
+	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(head)
+	var caption := MenuUi.label(step[2], 13, UiStyle.TEXT)
+	caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	caption.add_theme_constant_override("line_spacing", -8)  # the Thai font's lines are tall
+	box.add_child(caption)
+
+	var nav := HBoxContainer.new()
+	nav.alignment = BoxContainer.ALIGNMENT_CENTER
+	nav.add_theme_constant_override("separation", 14)
+	box.add_child(nav)
+	var prev := MenuUi.small_button("  ◀  ก่อนหน้า  ", "", 130)
+	prev.disabled = page == 0
+	prev.pressed.connect(_open_howto.bind(page - 1))
+	nav.add_child(prev)
+	var dots := HBoxContainer.new()
+	dots.add_theme_constant_override("separation", 6)
+	nav.add_child(dots)
+	for i in HOWTO.size():  # page dots: click one to jump there
+		var d := Button.new()
+		d.custom_minimum_size = Vector2(12, 12)
+		d.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		for state: String in ["normal", "hover", "pressed"]:
+			var ds := UiStyle.panel(Color("ffe08a") if state == "hover" else (MenuUi.GOLD if i == page else Color("4a3a28")),
+				MenuUi.GOLD_DARK, 1, 6)
+			ds.set_content_margin_all(0)
+			d.add_theme_stylebox_override(state, ds)
+		d.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+		d.pressed.connect(_open_howto.bind(i))
+		dots.add_child(d)
+	var last := page == HOWTO.size() - 1
+	var next := MenuUi.small_button("  ปิด  " if last else "  ถัดไป  ▶  ", "", 130)
+	next.pressed.connect(_close_modal if last else _open_howto.bind(page + 1))
+	nav.add_child(next)
+	var close := MenuUi.small_button("✕", "", 34)  # top-right corner of the box
+	close.position = (Vector2(W, 540) - Vector2(800, 524)) / 2 + Vector2(800 - 46, 10)
+	close.pressed.connect(_close_modal)
+	_modal.add_child(close)

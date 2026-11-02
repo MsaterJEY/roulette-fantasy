@@ -1,0 +1,17 @@
+{
+  "_note": "Playable characters. You pick one before the game; the bots get the others. 'weapon' is what your Attack card is called (same rules: -1 HP); 'attack' and 'finisher' are the move names shown when it hits / when it knocks someone out. 'style' picks the animation in scripts/attack_fx.gd; 'icon' is assets/icons/<icon>.png.",
+  "characters": [
+    {"id": "demon_hunter", "name": "นักล่าอาคม", "name_en": "Demon Hunter", "weapon": "ดาบโลหิต", "icon": "blood_sword",
+     "attack": "Blood Slash", "finisher": "Soul Reap", "style": "blood",
+     "finisher_desc": "พุ่งเข้าไปฟันหลายครั้งด้วยพลังปีศาจ จบด้วยเป้าหมายระเบิดกระจาย"},
+    {"id": "arcane_knight", "name": "อัศวินเวท", "name_en": "Arcane Knight", "weapon": "ดาบเวทมนตร์", "icon": "arcane_sword",
+     "attack": "Arcane Slash", "finisher": "King's Verdict", "style": "arcane",
+     "finisher_desc": "ฟันดาบแสงปิดฉาก เป้าหมายขาดครึ่งพร้อมรอยไหม้ตรงรอยขาด"},
+    {"id": "verdant_ranger", "name": "เรนเจอร์พฤกษา", "name_en": "Verdant Ranger", "weapon": "ธนูไม้เวท", "icon": "thorn_bow",
+     "attack": "Thorn Shot", "finisher": "Final Arrow", "style": "thorn",
+     "finisher_desc": "ยิงลูกศรพลังธรรมชาติขึ้นฟ้า ลูกศรยักษ์ตกลงมาแทงทะลุหัวปักโต๊ะ"},
+    {"id": "flame_dragon", "name": "มังกรเพลิง", "name_en": "Flame Dragon", "weapon": "กรงเล็บเพลิง", "icon": "flame_claw",
+     "attack": "Inferno Claw", "finisher": "Dragon's Judgment", "style": "flame",
+     "finisher_desc": "พ่นเพลิงมหาศาลเผาผลาญศัตรูจนไหม้เป็นถ่าน"}
+  ]
+}

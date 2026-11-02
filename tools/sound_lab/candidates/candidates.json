@@ -1,0 +1,1197 @@
+{
+ "select": [
+  {
+   "file": "01.ogg",
+   "label": "Kenney select_001",
+   "source": "select_001.ogg"
+  },
+  {
+   "file": "02.ogg",
+   "label": "Kenney select_002",
+   "source": "select_002.ogg"
+  },
+  {
+   "file": "03.ogg",
+   "label": "Kenney click_002",
+   "source": "click_002.ogg"
+  },
+  {
+   "file": "04.ogg",
+   "label": "Kenney pluck_001",
+   "source": "pluck_001.ogg"
+  },
+  {
+   "file": "05.ogg",
+   "label": "Kenney pluck_002",
+   "source": "pluck_002.ogg"
+  },
+  {
+   "file": "06.ogg",
+   "label": "Kenney bong_001",
+   "source": "bong_001.ogg"
+  },
+  {
+   "file": "07.ogg",
+   "label": "Kenney drop_002",
+   "source": "drop_002.ogg"
+  },
+  {
+   "file": "08.wav",
+   "label": "RPG interface1",
+   "source": "interface1.wav"
+  },
+  {
+   "file": "09.wav",
+   "label": "RPG interface2",
+   "source": "interface2.wav"
+  },
+  {
+   "file": "10.wav",
+   "label": "RPG interface3",
+   "source": "interface3.wav"
+  },
+  {
+   "file": "11.wav",
+   "label": "RPG interface4",
+   "source": "interface4.wav"
+  },
+  {
+   "file": "12.wav",
+   "label": "RPG interface5",
+   "source": "interface5.wav"
+  },
+  {
+   "file": "13.wav",
+   "label": "RPG interface6",
+   "source": "interface6.wav"
+  },
+  {
+   "file": "14.ogg",
+   "label": "Kenney cloth (ผ้า)",
+   "source": "cloth1.ogg"
+  },
+  {
+   "file": "15.ogg",
+   "label": "Kenney metalClick",
+   "source": "metalClick.ogg"
+  }
+ ],
+ "confirm": [
+  {
+   "file": "01.ogg",
+   "label": "Kenney confirmation_001",
+   "source": "confirmation_001.ogg"
+  },
+  {
+   "file": "02.ogg",
+   "label": "Kenney confirmation_002",
+   "source": "confirmation_002.ogg"
+  },
+  {
+   "file": "03.ogg",
+   "label": "Kenney confirmation_003",
+   "source": "confirmation_003.ogg"
+  },
+  {
+   "file": "04.ogg",
+   "label": "Kenney confirmation_004",
+   "source": "confirmation_004.ogg"
+  },
+  {
+   "file": "05.ogg",
+   "label": "Kenney maximize_001",
+   "source": "maximize_001.ogg"
+  },
+  {
+   "file": "06.wav",
+   "label": "ชักดาบ 1 (RPG)",
+   "source": "sword-unsheathe.wav"
+  },
+  {
+   "file": "07.wav",
+   "label": "ชักดาบ 2 (RPG)",
+   "source": "sword-unsheathe2.wav"
+  },
+  {
+   "file": "08.wav",
+   "label": "ชักดาบ 3 (RPG)",
+   "source": "sword-unsheathe3.wav"
+  },
+  {
+   "file": "09.wav",
+   "label": "ชักดาบ 4 (RPG)",
+   "source": "sword-unsheathe4.wav"
+  },
+  {
+   "file": "10.wav",
+   "label": "ชักดาบ 5 (RPG)",
+   "source": "sword-unsheathe5.wav"
+  },
+  {
+   "file": "11.ogg",
+   "label": "ชักมีด Kenney drawKnife1",
+   "source": "drawKnife1.ogg"
+  },
+  {
+   "file": "12.ogg",
+   "label": "ชักมีด Kenney drawKnife2",
+   "source": "drawKnife2.ogg"
+  },
+  {
+   "file": "13.ogg",
+   "label": "ชักมีด Kenney drawKnife3",
+   "source": "drawKnife3.ogg"
+  }
+ ],
+ "sword": [
+  {
+   "file": "01.wav",
+   "label": "เหวี่ยงดาบ 1 (RPG)",
+   "source": "swing.wav"
+  },
+  {
+   "file": "02.wav",
+   "label": "เหวี่ยงดาบ 2 (RPG)",
+   "source": "swing2.wav"
+  },
+  {
+   "file": "03.wav",
+   "label": "เหวี่ยงดาบ 3 (RPG)",
+   "source": "swing3.wav"
+  },
+  {
+   "file": "04.ogg",
+   "label": "Kenney knifeSlice",
+   "source": "knifeSlice.ogg"
+  },
+  {
+   "file": "05.ogg",
+   "label": "Kenney knifeSlice2",
+   "source": "knifeSlice2.ogg"
+  },
+  {
+   "file": "06.ogg",
+   "label": "Kenney chop",
+   "source": "chop.ogg"
+  },
+  {
+   "file": "07.wav",
+   "label": "ดาบกระแทก (อัดจริง) 1",
+   "source": "sword_hit.wav"
+  },
+  {
+   "file": "08.wav",
+   "label": "ดาบกระแทก (อัดจริง) 2",
+   "source": "sword_hit.wav"
+  },
+  {
+   "file": "09.wav",
+   "label": "ดาบกระแทก (อัดจริง) 3",
+   "source": "sword_hit.wav"
+  },
+  {
+   "file": "10.wav",
+   "label": "ดาบกระแทก (อัดจริง) 4",
+   "source": "sword_hit.wav"
+  },
+  {
+   "file": "11.wav",
+   "label": "ดาบกระแทก (อัดจริง) 5",
+   "source": "sword_hit.wav"
+  },
+  {
+   "file": "12.wav",
+   "label": "ดาบปะทะ/ชัก 1 (RPG)",
+   "source": "sword-unsheathe3.wav"
+  },
+  {
+   "file": "13.wav",
+   "label": "ดาบปะทะ/ชัก 2 (RPG)",
+   "source": "sword-unsheathe5.wav"
+  }
+ ],
+ "bow": [
+  {
+   "file": "01.wav",
+   "label": "ยิงธนู (อัดจริง) 1",
+   "source": "bow_shots.wav"
+  },
+  {
+   "file": "02.wav",
+   "label": "ยิงธนู (อัดจริง) 2",
+   "source": "bow_shots.wav"
+  },
+  {
+   "file": "03.wav",
+   "label": "ยิงธนู (อัดจริง) 3",
+   "source": "bow_shots.wav"
+  },
+  {
+   "file": "04.wav",
+   "label": "ยิงธนู (อัดจริง) 4",
+   "source": "bow_shots.wav"
+  },
+  {
+   "file": "05.wav",
+   "label": "ยิงธนู (อัดจริง) 5",
+   "source": "bow_shots.wav"
+  },
+  {
+   "file": "06.wav",
+   "label": "ยิงธนู (อัดจริง) 6",
+   "source": "bow_shots.wav"
+  },
+  {
+   "file": "07.wav",
+   "label": "ยิงธนูใส่คน",
+   "source": "arrow_person.wav"
+  },
+  {
+   "file": "08.wav",
+   "label": "ลูกศรพุ่งแล้วปัก",
+   "source": "arrow_flyhit.wav"
+  },
+  {
+   "file": "09.wav",
+   "label": "ลูกศรพุ่งผ่าน",
+   "source": "arrow_whoosh.wav"
+  },
+  {
+   "file": "10.wav",
+   "label": "หน้าไม้ยิง",
+   "source": "crossbow.wav"
+  }
+ ],
+ "dice": [
+  {
+   "file": "01.ogg",
+   "label": "Kenney dice-throw-1",
+   "source": "dice-throw-1.ogg"
+  },
+  {
+   "file": "02.ogg",
+   "label": "Kenney dice-throw-2",
+   "source": "dice-throw-2.ogg"
+  },
+  {
+   "file": "03.ogg",
+   "label": "Kenney dice-throw-3",
+   "source": "dice-throw-3.ogg"
+  },
+  {
+   "file": "04.ogg",
+   "label": "Kenney die-throw-1",
+   "source": "die-throw-1.ogg"
+  },
+  {
+   "file": "05.ogg",
+   "label": "Kenney die-throw-2",
+   "source": "die-throw-2.ogg"
+  },
+  {
+   "file": "06.ogg",
+   "label": "Kenney die-throw-3",
+   "source": "die-throw-3.ogg"
+  },
+  {
+   "file": "07.ogg",
+   "label": "Kenney die-throw-4",
+   "source": "die-throw-4.ogg"
+  },
+  {
+   "file": "08.ogg",
+   "label": "Kenney dice-shake-1",
+   "source": "dice-shake-1.ogg"
+  },
+  {
+   "file": "09.ogg",
+   "label": "Kenney dice-shake-2",
+   "source": "dice-shake-2.ogg"
+  },
+  {
+   "file": "10.ogg",
+   "label": "Kenney dice-shake-3",
+   "source": "dice-shake-3.ogg"
+  }
+ ],
+ "claw": [
+  {
+   "file": "01.wav",
+   "label": "เหวี่ยง 1 (RPG)",
+   "source": "swing.wav"
+  },
+  {
+   "file": "02.wav",
+   "label": "เหวี่ยง 2 (RPG)",
+   "source": "swing2.wav"
+  },
+  {
+   "file": "03.wav",
+   "label": "เหวี่ยง 3 (RPG)",
+   "source": "swing3.wav"
+  },
+  {
+   "file": "04.ogg",
+   "label": "Kenney knifeSlice",
+   "source": "knifeSlice.ogg"
+  },
+  {
+   "file": "05.ogg",
+   "label": "Kenney knifeSlice2",
+   "source": "knifeSlice2.ogg"
+  },
+  {
+   "file": "06.ogg",
+   "label": "Kenney chop",
+   "source": "chop.ogg"
+  },
+  {
+   "file": "07.ogg",
+   "label": "กระแทก impactPunch_heavy_000",
+   "source": "impactPunch_heavy_000.ogg"
+  },
+  {
+   "file": "08.ogg",
+   "label": "กระแทก impactPunch_heavy_002",
+   "source": "impactPunch_heavy_002.ogg"
+  },
+  {
+   "file": "09.ogg",
+   "label": "กระแทก impactSoft_heavy_001",
+   "source": "impactSoft_heavy_001.ogg"
+  },
+  {
+   "file": "10.wav",
+   "label": "กัด bite-small (RPG)",
+   "source": "bite-small.wav"
+  },
+  {
+   "file": "11.wav",
+   "label": "กัด bite-small2 (RPG)",
+   "source": "bite-small2.wav"
+  }
+ ],
+ "dragon_roar": [
+  {
+   "file": "01.wav",
+   "label": "สัตว์ร้ายคำราม mnstr1",
+   "source": "mnstr1.wav"
+  },
+  {
+   "file": "02.wav",
+   "label": "สัตว์ร้ายคำราม mnstr3",
+   "source": "mnstr3.wav"
+  },
+  {
+   "file": "03.wav",
+   "label": "สัตว์ร้ายคำราม mnstr5",
+   "source": "mnstr5.wav"
+  },
+  {
+   "file": "04.wav",
+   "label": "สัตว์ร้ายคำราม mnstr8",
+   "source": "mnstr8.wav"
+  },
+  {
+   "file": "05.wav",
+   "label": "สัตว์ร้ายคำราม mnstr12",
+   "source": "mnstr12.wav"
+  },
+  {
+   "file": "06.wav",
+   "label": "ยักษ์คำราม giant1",
+   "source": "giant1.wav"
+  },
+  {
+   "file": "07.wav",
+   "label": "ยักษ์คำราม giant3",
+   "source": "giant3.wav"
+  },
+  {
+   "file": "08.wav",
+   "label": "ยักษ์คำราม ogre1",
+   "source": "ogre1.wav"
+  },
+  {
+   "file": "09.wav",
+   "label": "ยักษ์คำราม ogre3",
+   "source": "ogre3.wav"
+  },
+  {
+   "file": "10.wav",
+   "label": "มนุษย์หมาป่า",
+   "source": "wolfman.wav"
+  }
+ ],
+ "dragon_fire": [
+  {
+   "file": "01.wav",
+   "label": "เครื่องพ่นไฟ (อัดจริง) ช่วง 1",
+   "source": "flamethrower.wav"
+  },
+  {
+   "file": "02.wav",
+   "label": "เครื่องพ่นไฟ (อัดจริง) ช่วง 2",
+   "source": "flamethrower.wav"
+  },
+  {
+   "file": "03.wav",
+   "label": "เครื่องพ่นไฟ (อัดจริง) ช่วง 3",
+   "source": "flamethrower.wav"
+  },
+  {
+   "file": "04.wav",
+   "label": "เครื่องพ่นไฟ (อัดจริง) ช่วง 4",
+   "source": "flamethrower.wav"
+  },
+  {
+   "file": "05.wav",
+   "label": "เครื่องพ่นไฟ (อัดจริง) ช่วง 5",
+   "source": "flamethrower.wav"
+  },
+  {
+   "file": "06.wav",
+   "label": "ไฟพุ่งวูบ (flare whoosh)",
+   "source": "flare_whoosh.wav"
+  },
+  {
+   "file": "07.wav",
+   "label": "ไฟลุกโหม 1",
+   "source": "fire_crackle.wav"
+  },
+  {
+   "file": "08.wav",
+   "label": "ไฟลุกโหม 2",
+   "source": "fire_crackle.wav"
+  }
+ ],
+ "burning": [
+  {
+   "file": "01.wav",
+   "label": "ไฟลุกเปรี๊ยะ 1",
+   "source": "fire_crackle.wav"
+  },
+  {
+   "file": "02.wav",
+   "label": "ไฟลุกเปรี๊ยะ 2",
+   "source": "fire_crackle.wav"
+  },
+  {
+   "file": "03.wav",
+   "label": "ไฟลุกเปรี๊ยะ 3",
+   "source": "fire_crackle.wav"
+  },
+  {
+   "file": "04.wav",
+   "label": "ไฟลุกเปรี๊ยะ 4",
+   "source": "fire_crackle.wav"
+  },
+  {
+   "file": "05.wav",
+   "label": "ไฟจากเครื่องพ่นไฟ (ท้าย) 1",
+   "source": "flamethrower.wav"
+  },
+  {
+   "file": "06.wav",
+   "label": "ไฟจากเครื่องพ่นไฟ (ท้าย) 2",
+   "source": "flamethrower.wav"
+  }
+ ],
+ "magic_wave": [
+  {
+   "file": "01.wav",
+   "label": "เวท spell (RPG)",
+   "source": "spell.wav"
+  },
+  {
+   "file": "02.wav",
+   "label": "เวท magic1 (RPG)",
+   "source": "magic1.wav"
+  },
+  {
+   "file": "03.wav",
+   "label": "ไฟพุ่งวูบ",
+   "source": "flare_whoosh.wav"
+  },
+  {
+   "file": "04.ogg",
+   "label": "Kenney maximize_003",
+   "source": "maximize_003.ogg"
+  },
+  {
+   "file": "05.ogg",
+   "label": "Kenney maximize_006",
+   "source": "maximize_006.ogg"
+  },
+  {
+   "file": "06.ogg",
+   "label": "Kenney glass_002",
+   "source": "glass_002.ogg"
+  },
+  {
+   "file": "07.ogg",
+   "label": "Kenney glass_005",
+   "source": "glass_005.ogg"
+  },
+  {
+   "file": "08.ogg",
+   "label": "กังวาน impactBell_heavy_000",
+   "source": "impactBell_heavy_000.ogg"
+  },
+  {
+   "file": "09.ogg",
+   "label": "กังวาน impactGlass_heavy_002",
+   "source": "impactGlass_heavy_002.ogg"
+  }
+ ],
+ "hurt": [
+  {
+   "file": "01.ogg",
+   "label": "Kenney impactPunch_heavy_000",
+   "source": "impactPunch_heavy_000.ogg"
+  },
+  {
+   "file": "02.ogg",
+   "label": "Kenney impactPunch_heavy_001",
+   "source": "impactPunch_heavy_001.ogg"
+  },
+  {
+   "file": "03.ogg",
+   "label": "Kenney impactPunch_heavy_003",
+   "source": "impactPunch_heavy_003.ogg"
+  },
+  {
+   "file": "04.ogg",
+   "label": "Kenney impactPunch_medium_000",
+   "source": "impactPunch_medium_000.ogg"
+  },
+  {
+   "file": "05.ogg",
+   "label": "Kenney impactPunch_medium_002",
+   "source": "impactPunch_medium_002.ogg"
+  },
+  {
+   "file": "06.ogg",
+   "label": "Kenney impactSoft_heavy_000",
+   "source": "impactSoft_heavy_000.ogg"
+  },
+  {
+   "file": "07.ogg",
+   "label": "Kenney impactSoft_heavy_002",
+   "source": "impactSoft_heavy_002.ogg"
+  },
+  {
+   "file": "08.ogg",
+   "label": "Kenney impactSoft_medium_001",
+   "source": "impactSoft_medium_001.ogg"
+  },
+  {
+   "file": "09.wav",
+   "label": "กัด bite-small2 (RPG)",
+   "source": "bite-small2.wav"
+  }
+ ],
+ "block": [
+  {
+   "file": "01.ogg",
+   "label": "Kenney impactPlate_heavy_000",
+   "source": "impactPlate_heavy_000.ogg"
+  },
+  {
+   "file": "02.ogg",
+   "label": "Kenney impactPlate_heavy_002",
+   "source": "impactPlate_heavy_002.ogg"
+  },
+  {
+   "file": "03.ogg",
+   "label": "Kenney impactPlate_medium_001",
+   "source": "impactPlate_medium_001.ogg"
+  },
+  {
+   "file": "04.ogg",
+   "label": "Kenney impactMetal_heavy_000",
+   "source": "impactMetal_heavy_000.ogg"
+  },
+  {
+   "file": "05.ogg",
+   "label": "Kenney impactMetal_heavy_003",
+   "source": "impactMetal_heavy_003.ogg"
+  },
+  {
+   "file": "06.ogg",
+   "label": "Kenney impactMetal_medium_002",
+   "source": "impactMetal_medium_002.ogg"
+  },
+  {
+   "file": "07.ogg",
+   "label": "Kenney impactBell_heavy_001",
+   "source": "impactBell_heavy_001.ogg"
+  },
+  {
+   "file": "08.ogg",
+   "label": "Kenney impactTin_medium_000",
+   "source": "impactTin_medium_000.ogg"
+  },
+  {
+   "file": "09.wav",
+   "label": "โลหะกังวาน (RPG)",
+   "source": "metal-ringing.wav"
+  },
+  {
+   "file": "10.wav",
+   "label": "โลหะเล็ก (RPG)",
+   "source": "metal-small1.wav"
+  }
+ ],
+ "burst": [
+  {
+   "file": "01.wav",
+   "label": "ระเบิดมีเศษตก 1",
+   "source": "expl_debris.wav"
+  },
+  {
+   "file": "02.wav",
+   "label": "ระเบิดหนักก้อง 1",
+   "source": "expl_sharp.wav"
+  },
+  {
+   "file": "03.wav",
+   "label": "ระเบิดหนักก้อง 2",
+   "source": "expl_sharp.wav"
+  },
+  {
+   "file": "04.wav",
+   "label": "ระเบิดทึบ 1",
+   "source": "expl_dull.wav"
+  },
+  {
+   "file": "05.ogg",
+   "label": "กระแทก impactSoft_heavy_003",
+   "source": "impactSoft_heavy_003.ogg"
+  },
+  {
+   "file": "06.ogg",
+   "label": "กระแทก impactPunch_heavy_004",
+   "source": "impactPunch_heavy_004.ogg"
+  },
+  {
+   "file": "07.ogg",
+   "label": "กระแทก impactMining_002",
+   "source": "impactMining_002.ogg"
+  },
+  {
+   "file": "08.wav",
+   "label": "เละ slime3 (RPG)",
+   "source": "slime3.wav"
+  },
+  {
+   "file": "09.wav",
+   "label": "เละ slime7 (RPG)",
+   "source": "slime7.wav"
+  }
+ ],
+ "verdict": [
+  {
+   "file": "01.wav",
+   "label": "ระเบิดหนักก้อง 1",
+   "source": "expl_sharp.wav"
+  },
+  {
+   "file": "02.wav",
+   "label": "ระเบิดหนักก้อง 2",
+   "source": "expl_sharp.wav"
+  },
+  {
+   "file": "03.wav",
+   "label": "ระเบิดทึบ 1",
+   "source": "expl_dull.wav"
+  },
+  {
+   "file": "04.ogg",
+   "label": "Kenney impactMetal_heavy_001",
+   "source": "impactMetal_heavy_001.ogg"
+  },
+  {
+   "file": "05.ogg",
+   "label": "Kenney impactMetal_heavy_004",
+   "source": "impactMetal_heavy_004.ogg"
+  },
+  {
+   "file": "06.ogg",
+   "label": "Kenney impactBell_heavy_002",
+   "source": "impactBell_heavy_002.ogg"
+  },
+  {
+   "file": "07.ogg",
+   "label": "Kenney impactBell_heavy_004",
+   "source": "impactBell_heavy_004.ogg"
+  },
+  {
+   "file": "08.ogg",
+   "label": "Kenney impactPlate_heavy_003",
+   "source": "impactPlate_heavy_003.ogg"
+  },
+  {
+   "file": "09.wav",
+   "label": "ดาบกระแทก (อัดจริง) 1",
+   "source": "sword_hit.wav"
+  },
+  {
+   "file": "10.wav",
+   "label": "ดาบกระแทก (อัดจริง) 2",
+   "source": "sword_hit.wav"
+  },
+  {
+   "file": "11.wav",
+   "label": "ดาบกระแทก (อัดจริง) 3",
+   "source": "sword_hit.wav"
+  },
+  {
+   "file": "12.ogg",
+   "label": "กระแทก impactMining_002",
+   "source": "impactMining_002.ogg"
+  }
+ ],
+ "arrow_pin": [
+  {
+   "file": "01.ogg",
+   "label": "Kenney impactWood_heavy_000",
+   "source": "impactWood_heavy_000.ogg"
+  },
+  {
+   "file": "02.ogg",
+   "label": "Kenney impactWood_heavy_001",
+   "source": "impactWood_heavy_001.ogg"
+  },
+  {
+   "file": "03.ogg",
+   "label": "Kenney impactWood_heavy_003",
+   "source": "impactWood_heavy_003.ogg"
+  },
+  {
+   "file": "04.ogg",
+   "label": "Kenney impactPlank_medium_001",
+   "source": "impactPlank_medium_001.ogg"
+  },
+  {
+   "file": "05.ogg",
+   "label": "Kenney impactPlank_medium_003",
+   "source": "impactPlank_medium_003.ogg"
+  },
+  {
+   "file": "06.ogg",
+   "label": "Kenney impactWood_medium_002",
+   "source": "impactWood_medium_002.ogg"
+  },
+  {
+   "file": "07.wav",
+   "label": "ลูกศรปัก (อัดจริง)",
+   "source": "arrow_flyhit.wav"
+  },
+  {
+   "file": "08.wav",
+   "label": "ลูกศรปักตัว (อัดจริง)",
+   "source": "arrow_person.wav"
+  },
+  {
+   "file": "09.wav",
+   "label": "ระเบิดทึบ 1",
+   "source": "expl_dull.wav"
+  }
+ ],
+ "card_play": [
+  {
+   "file": "01.ogg",
+   "label": "Kenney card-place-1",
+   "source": "card-place-1.ogg"
+  },
+  {
+   "file": "02.ogg",
+   "label": "Kenney card-place-2",
+   "source": "card-place-2.ogg"
+  },
+  {
+   "file": "03.ogg",
+   "label": "Kenney card-place-3",
+   "source": "card-place-3.ogg"
+  },
+  {
+   "file": "04.ogg",
+   "label": "Kenney card-slide-1",
+   "source": "card-slide-1.ogg"
+  },
+  {
+   "file": "05.ogg",
+   "label": "Kenney card-slide-3",
+   "source": "card-slide-3.ogg"
+  },
+  {
+   "file": "06.ogg",
+   "label": "Kenney card-slide-5",
+   "source": "card-slide-5.ogg"
+  },
+  {
+   "file": "07.ogg",
+   "label": "Kenney card-shove-1",
+   "source": "card-shove-1.ogg"
+  },
+  {
+   "file": "08.ogg",
+   "label": "Kenney card-shove-2",
+   "source": "card-shove-2.ogg"
+  },
+  {
+   "file": "09.ogg",
+   "label": "Kenney card-fan-1",
+   "source": "card-fan-1.ogg"
+  }
+ ],
+ "coin": [
+  {
+   "file": "01.ogg",
+   "label": "Kenney chips-stack-1",
+   "source": "chips-stack-1.ogg"
+  },
+  {
+   "file": "02.ogg",
+   "label": "Kenney chips-stack-3",
+   "source": "chips-stack-3.ogg"
+  },
+  {
+   "file": "03.ogg",
+   "label": "Kenney chips-handle-1",
+   "source": "chips-handle-1.ogg"
+  },
+  {
+   "file": "04.ogg",
+   "label": "Kenney chips-handle-4",
+   "source": "chips-handle-4.ogg"
+  },
+  {
+   "file": "05.ogg",
+   "label": "Kenney chip-lay-2",
+   "source": "chip-lay-2.ogg"
+  },
+  {
+   "file": "06.ogg",
+   "label": "Kenney chips-collide-2",
+   "source": "chips-collide-2.ogg"
+  },
+  {
+   "file": "07.ogg",
+   "label": "Kenney handleCoins",
+   "source": "handleCoins.ogg"
+  },
+  {
+   "file": "08.ogg",
+   "label": "Kenney handleCoins2",
+   "source": "handleCoins2.ogg"
+  },
+  {
+   "file": "09.wav",
+   "label": "เหรียญ (RPG)",
+   "source": "coin.wav"
+  }
+ ],
+ "turn": [
+  {
+   "file": "01.ogg",
+   "label": "Kenney bong_001",
+   "source": "bong_001.ogg"
+  },
+  {
+   "file": "02.ogg",
+   "label": "Kenney confirmation_002",
+   "source": "confirmation_002.ogg"
+  },
+  {
+   "file": "03.ogg",
+   "label": "Kenney confirmation_003",
+   "source": "confirmation_003.ogg"
+  },
+  {
+   "file": "04.ogg",
+   "label": "Kenney question_001",
+   "source": "question_001.ogg"
+  },
+  {
+   "file": "05.ogg",
+   "label": "Kenney maximize_002",
+   "source": "maximize_002.ogg"
+  },
+  {
+   "file": "06.ogg",
+   "label": "เพลงสั้น HIT00",
+   "source": "jingles_HIT00.ogg"
+  },
+  {
+   "file": "07.ogg",
+   "label": "เพลงสั้น HIT01",
+   "source": "jingles_HIT01.ogg"
+  },
+  {
+   "file": "08.ogg",
+   "label": "เพลงสั้น HIT02",
+   "source": "jingles_HIT02.ogg"
+  },
+  {
+   "file": "09.ogg",
+   "label": "เพลงสั้น HIT03",
+   "source": "jingles_HIT03.ogg"
+  },
+  {
+   "file": "10.ogg",
+   "label": "เพลงสั้น HIT04",
+   "source": "jingles_HIT04.ogg"
+  },
+  {
+   "file": "11.ogg",
+   "label": "เพลงสั้น HIT05",
+   "source": "jingles_HIT05.ogg"
+  }
+ ],
+ "win": [
+  {
+   "file": "01.ogg",
+   "label": "เพลงสั้น PIZZI00",
+   "source": "jingles_PIZZI00.ogg"
+  },
+  {
+   "file": "02.ogg",
+   "label": "เพลงสั้น PIZZI03",
+   "source": "jingles_PIZZI03.ogg"
+  },
+  {
+   "file": "03.ogg",
+   "label": "เพลงสั้น PIZZI06",
+   "source": "jingles_PIZZI06.ogg"
+  },
+  {
+   "file": "04.ogg",
+   "label": "เพลงสั้น PIZZI09",
+   "source": "jingles_PIZZI09.ogg"
+  },
+  {
+   "file": "05.ogg",
+   "label": "เพลงสั้น PIZZI12",
+   "source": "jingles_PIZZI12.ogg"
+  },
+  {
+   "file": "06.ogg",
+   "label": "เพลงสั้น PIZZI15",
+   "source": "jingles_PIZZI15.ogg"
+  },
+  {
+   "file": "07.ogg",
+   "label": "เพลงสั้น STEEL00",
+   "source": "jingles_STEEL00.ogg"
+  },
+  {
+   "file": "08.ogg",
+   "label": "เพลงสั้น STEEL03",
+   "source": "jingles_STEEL03.ogg"
+  },
+  {
+   "file": "09.ogg",
+   "label": "เพลงสั้น STEEL06",
+   "source": "jingles_STEEL06.ogg"
+  },
+  {
+   "file": "10.ogg",
+   "label": "เพลงสั้น STEEL09",
+   "source": "jingles_STEEL09.ogg"
+  },
+  {
+   "file": "11.ogg",
+   "label": "เพลงสั้น STEEL12",
+   "source": "jingles_STEEL12.ogg"
+  },
+  {
+   "file": "12.ogg",
+   "label": "เพลงสั้น STEEL15",
+   "source": "jingles_STEEL15.ogg"
+  },
+  {
+   "file": "13.ogg",
+   "label": "เพลงสั้น SAX00",
+   "source": "jingles_SAX00.ogg"
+  },
+  {
+   "file": "14.ogg",
+   "label": "เพลงสั้น SAX03",
+   "source": "jingles_SAX03.ogg"
+  },
+  {
+   "file": "15.ogg",
+   "label": "เพลงสั้น SAX06",
+   "source": "jingles_SAX06.ogg"
+  },
+  {
+   "file": "16.ogg",
+   "label": "เพลงสั้น SAX09",
+   "source": "jingles_SAX09.ogg"
+  },
+  {
+   "file": "17.ogg",
+   "label": "เพลงสั้น SAX12",
+   "source": "jingles_SAX12.ogg"
+  },
+  {
+   "file": "18.ogg",
+   "label": "เพลงสั้น SAX15",
+   "source": "jingles_SAX15.ogg"
+  },
+  {
+   "file": "19.ogg",
+   "label": "เพลงสั้น NES00",
+   "source": "jingles_NES00.ogg"
+  },
+  {
+   "file": "20.ogg",
+   "label": "เพลงสั้น NES03",
+   "source": "jingles_NES03.ogg"
+  },
+  {
+   "file": "21.ogg",
+   "label": "เพลงสั้น NES06",
+   "source": "jingles_NES06.ogg"
+  },
+  {
+   "file": "22.ogg",
+   "label": "เพลงสั้น NES09",
+   "source": "jingles_NES09.ogg"
+  },
+  {
+   "file": "23.ogg",
+   "label": "เพลงสั้น NES12",
+   "source": "jingles_NES12.ogg"
+  },
+  {
+   "file": "24.ogg",
+   "label": "เพลงสั้น NES15",
+   "source": "jingles_NES15.ogg"
+  }
+ ],
+ "lose": [
+  {
+   "file": "01.ogg",
+   "label": "เพลงสั้น PIZZI00",
+   "source": "jingles_PIZZI00.ogg"
+  },
+  {
+   "file": "02.ogg",
+   "label": "เพลงสั้น PIZZI03",
+   "source": "jingles_PIZZI03.ogg"
+  },
+  {
+   "file": "03.ogg",
+   "label": "เพลงสั้น PIZZI06",
+   "source": "jingles_PIZZI06.ogg"
+  },
+  {
+   "file": "04.ogg",
+   "label": "เพลงสั้น PIZZI09",
+   "source": "jingles_PIZZI09.ogg"
+  },
+  {
+   "file": "05.ogg",
+   "label": "เพลงสั้น PIZZI12",
+   "source": "jingles_PIZZI12.ogg"
+  },
+  {
+   "file": "06.ogg",
+   "label": "เพลงสั้น PIZZI15",
+   "source": "jingles_PIZZI15.ogg"
+  },
+  {
+   "file": "07.ogg",
+   "label": "เพลงสั้น STEEL00",
+   "source": "jingles_STEEL00.ogg"
+  },
+  {
+   "file": "08.ogg",
+   "label": "เพลงสั้น STEEL03",
+   "source": "jingles_STEEL03.ogg"
+  },
+  {
+   "file": "09.ogg",
+   "label": "เพลงสั้น STEEL06",
+   "source": "jingles_STEEL06.ogg"
+  },
+  {
+   "file": "10.ogg",
+   "label": "เพลงสั้น STEEL09",
+   "source": "jingles_STEEL09.ogg"
+  },
+  {
+   "file": "11.ogg",
+   "label": "เพลงสั้น STEEL12",
+   "source": "jingles_STEEL12.ogg"
+  },
+  {
+   "file": "12.ogg",
+   "label": "เพลงสั้น STEEL15",
+   "source": "jingles_STEEL15.ogg"
+  },
+  {
+   "file": "13.ogg",
+   "label": "เพลงสั้น SAX00",
+   "source": "jingles_SAX00.ogg"
+  },
+  {
+   "file": "14.ogg",
+   "label": "เพลงสั้น SAX03",
+   "source": "jingles_SAX03.ogg"
+  },
+  {
+   "file": "15.ogg",
+   "label": "เพลงสั้น SAX06",
+   "source": "jingles_SAX06.ogg"
+  },
+  {
+   "file": "16.ogg",
+   "label": "เพลงสั้น SAX09",
+   "source": "jingles_SAX09.ogg"
+  },
+  {
+   "file": "17.ogg",
+   "label": "เพลงสั้น SAX12",
+   "source": "jingles_SAX12.ogg"
+  },
+  {
+   "file": "18.ogg",
+   "label": "เพลงสั้น SAX15",
+   "source": "jingles_SAX15.ogg"
+  },
+  {
+   "file": "19.ogg",
+   "label": "เพลงสั้น NES00",
+   "source": "jingles_NES00.ogg"
+  },
+  {
+   "file": "20.ogg",
+   "label": "เพลงสั้น NES03",
+   "source": "jingles_NES03.ogg"
+  },
+  {
+   "file": "21.ogg",
+   "label": "เพลงสั้น NES06",
+   "source": "jingles_NES06.ogg"
+  },
+  {
+   "file": "22.ogg",
+   "label": "เพลงสั้น NES09",
+   "source": "jingles_NES09.ogg"
+  },
+  {
+   "file": "23.ogg",
+   "label": "เพลงสั้น NES12",
+   "source": "jingles_NES12.ogg"
+  },
+  {
+   "file": "24.ogg",
+   "label": "เพลงสั้น NES15",
+   "source": "jingles_NES15.ogg"
+  }
+ ]
+}

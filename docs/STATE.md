@@ -1,0 +1,177 @@
+# Roulette Fantasy: STATE
+
+> The game's memory. Every /game-* skill reads this first and writes back to it.
+
+## Settings
+- engine: godot
+- genre: digital tabletop card/board, 4 players vs AI bots
+- created: 2026-10-24
+- run: godot --path .
+- window: 960x540, 60 FPS cap
+
+## Phase
+CORE
+
+## Tasks
+- [x] Table screen: 4 seats + HUD + hand + game log
+- [x] Turn engine: roulette roll/draw, Phase 1, Phase 2, 20 s timer
+- [x] Cards from JSON: Attack/Defense combat, Help + Curse effects
+- [x] Shop: buy cards, 3 shards -> ring after minigame 1
+- [x] Minigame guess-the-rank every 2 rounds + rewards
+- [x] AI bots for all decisions
+- [x] End: 5 rings or last alive -> result screen + Rematch
+- [x] Balance (later): 20-round bot test had zero eliminations; attacks may be too weak vs Defense x12 + shield 3
+- [x] later: first-person pixel-3D table (from mockup): SubViewport low-res 3D tavern, billboard pixel characters, physics dice, 2D HUD on top
+- [x] later: real character art for assets/sprites/bot_*.png (and a player-hands sprite)
+- [ ] later: player's own hands holding cards at the bottom of the 3D view; nicer character models if wanted
+- [ ] later: 2 more characters (user's file lists 6; only 4 described)
+- [ ] Online rooms (Find Room / Join by Code / lobby chat for real)
+- [ ] Menu sounds (if wanted) through the sound lab: user picks
+- [ ] Room settings phase 2: starting HP, items on/off, random events, join mid-game / spectators / AFK bots
+- [ ] Room settings phase 3: custom dice odds, own rule presets, saved setting sets
+
+## Bugs
+- [x] crash-ish script error when the human goes first: turn toast used before it was built
+- [x] elf looked glitchy: hood sides and hair locks shared a face plane (z-fighting stripes), lantern washed out its face, chair not behind the turned bot
+- [x] burnt (Dragon's Judgment) bodies turned light again: ending/cancelling targeting reset every bot's colour
+- [x] after a knockout you could press Next / play cards / shop before the death animation finished; Final Arrow's hold ended before its colour fade
+
+## Decisions
+- 2026-10-24 MVP: Godot 4.7.2 2D top-down table (3D first-person later)
+- 2026-10-24 MVP: 1 human + 3 AI bots, 4 players; online multiplayer later
+- 2026-10-24 Combat: defend with a defense card; no card = defense fails
+- 2026-10-24 Source design doc: ../Roullet Fantasy.md
+- 2026-10-24 Attack needs an Attack card; defense needs a Defense card (common in draw pile/shop)
+- 2026-10-24 Minigame every 2 rounds: guess the rank 1-100, questions in data/minigame_ranks.json
+- 2026-10-24 HP 0 = eliminated; last alive also wins
+- 2026-10-24 Assumed: coin = baht = gold; 2nd 'shield 1/2' pair = Cleanse 1/Cleanse all; ring = 3 shards
+- 2026-10-24 UI built in code (scripts/table.gd); Thai via SystemFont Leelawadee UI/Tahoma
+- 2026-10-24 Cards in data/cards.json (id,name,type,count,price,phase,desc); headless runs = autoplay x8 speed, logs printed
+- 2026-10-24 Assumed: 'no items' curse also blocks Defense cards; curse turns count down at the end of the cursed player's own turn; bad luck = gold -1 (9 -> 1), used up by next spin
+- 2026-10-24 Assumed: items playable only on your own turn (except Defense as a reaction); each Attack card = 1 attack; human gets 10 s to choose defense (auto-defends if holding a card)
+- 2026-10-24 Shop: 5 offers weighted by card count (max 2 of a kind), restocked every round, bought slots sold out; Phase 1 only; hand must have room
+- 2026-10-24 UI names: Phase 1 = Preparation (เตรียมตัว), Phase 2 = Combat (ต่อสู้); code keeps PHASE1/PHASE2
+- 2026-10-24 Heal cards can't be played at full HP, shield cards not at full shield (everyone); log shows before -> after
+- 2026-10-24 No shield stat (user, overrides spec section 2/4): attack = Defense card (used up) or -1 HP; 'ฟื้นเกราะ 1/2' replaced by 'เสริมป้องกัน' (gain 1 Defense card, x5); cleanse only removes curses
+- 2026-10-24 เสริมป้องกัน = free block: next block with a Defense card keeps the card; stacks; lasts until used; still needs a Defense card in hand
+- 2026-10-24 Roulette wheel removed (looks like gambling): gold comes from throwing 3 dice; step renamed Roll (Step.ROLL, roll_dice())
+- 2026-10-24 Minigame: answers in turn order, 15 s each, empty/timeout = pass (0); repeats refused (human retries); ties share the place and its reward; questions drawn without repeats until all used
+- 2026-10-24 Minigame question lists are short (20-30 items, approximate rankings) in data/minigame_ranks.json; not in list = 0
+- 2026-10-24 Once the human is knocked out the bots play on at 3x speed; result screen shows after a 1.5 s banner; Rematch reloads the scene
+- 2026-10-24 Full hand can buy (user): pick a hand card to discard for the new one; bots don't buy with a full hand
+- 2026-10-25 Balance (user: faster games, some eliminations): HP 5->4, ring = 2 shards (was 3), Attack cards 14->18, Defense 12->8. Sim: 9.8 rounds (~18 min est.), 1.65 eliminations/game, 3% last-alive wins
+- 2026-10-25 Sounds are skipped in headless runs: quitting mid-sound leaked the AudioStreamPlaybackWAV at exit (smoke CRASH false alarm)
+- 2026-10-25 3D view: low-res SubViewport (480x270, x2 nearest) behind the 2D HUD; scene built in code; bots = Sprite3D pictures (unshaded) so real art is a file swap; dice animated (not physics) so they always land on the rules' result, squared to the camera
+- 2026-10-25 Cards and effects are pictures: assets/icons/<id>.png (tools/make_icons.py placeholders; free_block has its own icon). Card face = price coin, name, big icon
+- 2026-10-25 Effects on bots show at the 3D character (icons over/beside the head, purple curse / blue buff aura, hit = red flash + shake + '-1', block = shield pop); effects on you show in your view (blind = dark haze, truce = blue edges, hit = red edge flash + screen jolt, block = big shield, no items = hand greyed + badge, no shop / bad luck = icon on the button)
+- 2026-10-25 Bots defend more (user): shop always has 2 Defense (SHOP_DEFENSES), deck Attack 18->22 / Defense 8->6, bots score shop cards by need (Defense first, keep 2 gold for one). Sim: blocked 58% (was 49%), eliminations 1.54/game, ~18 min
+- 2026-10-25 Bots are 3D (user): blocky chibi models built from boxes/cones in code (Character3D, looks demon/witch/elf), not sprites; seats moved in (x 1.3, top z -1.3) and turned towards the camera so faces show; fill light per bot; 2D sprite files and tools/make_placeholder_art.py removed
+- 2026-10-25 HUD layout from the user's 2nd mockup: top bar of 4 player cards (A,B,C,you), round plate, history top-right with icons + fold, gold/rail/hand/buttons along the bottom; the mockup's ARM bar shown as rings + shards (our rules have no armour stat)
+- 2026-10-25 Targeting by clicking the 3D bot (screen box from the camera projection, TavernView.seat_at) or its top-bar card; valid targets glow orange
+- 2026-10-25 3D view at full 960x540 + MSAA 4x (user wanted it sharper); your card first in the top bar, blue with a star; history starts folded into a right-edge tab
+- 2026-10-25 Turn order by an opening dice roll (user): everyone throws 3d6, highest first, ties re-throw among themselves; top-bar cards are placed in turn order (your card keeps its blue/star look). Shown before turn 1 (~7.6 s): each throw in 3D, total badge on the card, then the cards slide into order
+- 2026-10-25 Played cards are thrown: GameController.card_played -> a small 3D card (type colour, icon) arcs from the player's hand to the target (self cards rise above the player) and bursts; hit/block effects wait until it lands
+- 2026-10-25 Bot faces: blink every 2-5 s (sometimes twice), hurt face (> < eyes, open mouth, sweat drop) + head jerk when hit, x x eyes when knocked out
+- 2026-10-25 Characters (user file): 4 now (Demon Hunter, Arcane Knight, Verdant Ranger, Flame Dragon), 2 more later; you pick before the game, bots get the rest; character Attack card is cosmetic (weapon name/icon); characters are people (burn marks, not wood)
+- 2026-10-25 Attacks animate per character (AttackFx: blood/arcane/thorn/flame), finishers on knockouts; the game holds while they play; old demon/witch/elf models removed
+- 2026-10-25 Pacing (user): 3 s wait with a countdown before the opening throws; on a win, the last finisher plays out, then the win banner stays 3 s before the summary
+- 2026-10-25 Soul Reap: slashes leave glowing wounds, the body shudders 1 s, then bursts. Any knockout: the dead player's hand falls face down onto the table in front of them (a held fan of 4 if their hand was empty; yours in front of the camera)
+- 2026-10-25 While an attack or death animation plays (GameController.hold) nothing can be done: no cards, shop, Next or roll; buttons hidden; finisher holds cover each whole animation (blood 2.5, arcane 2.6, thorn 2.8, flame 4.0 s)
+- 2026-10-25 Attack arm moves (user): arms on shoulder pivots with hand grips; the weapon goes into the hand while attacking (cards hidden); attackers turn ~55% towards the target so the moves show side-on; swords raise and slash across, bow aimed/drawn/loosed, dragon claws raise and rake; finishers have their own moves; projectiles leave at the release (60% of the windup)
+- 2026-10-25 Sound: 47 synthesized SFX (tools/make_sounds.py, own work, no licences), layered and timed per the user's brief; Sfx node with 14 voices, silent headless; Dragon's Judgment gets a 0.6 s growl+inhale before the jet (finisher 4.6 s); quitting stops sounds first (no exit leak)
+- 2026-10-25 Sound feel (user): easy on the ears and solid; finishers heavy and powerful. make_sounds.py now rolls off highs (warm()), adds low-mid body and sub-bass, wooden dice clacks, warm UI knocks
+- 2026-10-25 Sound (user): no effect on every action; synthesized set dropped. Only 4 real CC0 sounds for now: select (Kenney Interface), dice (Kenney Casino), sword + bow (SSE Library WEAPONS, archive.org, cut to one hit/shot). Sources in docs/design.md
+- 2026-10-25 Sounds chosen by ear in the sound lab (tools/sound_lab/sound_lab.gd): 61 CC0 candidates for select / confirm (new: start button) / sword / bow / dice from Kenney, artisticdude RPG Sound Pack and SSE Library WEAPONS; picks copied to assets/sounds
+- 2026-10-25 Sound workflow (user): every new sound goes through the sound lab - I gather candidates, the user picks by ear
+- 2026-10-25 Menus offline vs bots; Find Room/Join by Code show 'online coming soon'; results score is display-only (ring 100, shard 20, kill 50, damage 10, HP 5, win 300)
+
+## Log
+- 2026-10-24 project created
+- 2026-10-24 12:27 design.md written from the full spec; MVP = 7 tasks
+- 2026-10-24 12:34 done: Table screen: 4 seats + HUD + hand + game log
+- 2026-10-24 12:34 task 1: table screen with 4 seat dashboards, roulette wheel, hand, event log (demo data)
+- 2026-10-24 12:39 task 2: turn engine (seat order, roulette 3d6/2 gold + draw 2, Phase 1/2, 20 s timer, hand limit 7, reshuffle, minigame hook every 2 rounds)
+- 2026-10-24 12:39 done: Turn engine: roulette roll/draw, Phase 1, Phase 2, 20 s timer
+- 2026-10-24 12:44 done: Cards from JSON: Attack/Defense combat, Help + Curse effects
+- 2026-10-24 12:44 task 3: card effects (attack/defense with human prompt, help, 5 curses with durations, truce, bad luck, blind), targeting by clicking seats, elimination + last-alive win; tests/test_rules.gd 17/17 pass
+- 2026-10-24 12:48 done: Shop: buy cards, 3 shards -> ring after minigame 1
+- 2026-10-24 12:48 task 4: shop window (buy, ring exchange after minigame 1, 5th ring wins), bot shopping; tests 25/25; tests/shot_shop.gd renders the shop for screenshots
+- 2026-10-24 13:02 renamed on-screen Phase 1/2 to Preparation (เตรียมตัว) / Combat (ต่อสู้)
+- 2026-10-24 13:10 layout: shop/next buttons moved to the felt's bottom-right corner; roulette and center labels moved down away from the top seat
+- 2026-10-24 13:18 added 'เทิร์นของคุณ!' toast: pops in at the start of your turn, holds 0.8 s, fades out (GameController.turn_started signal)
+- 2026-10-24 13:20 active seat highlight: thick gold border + glow + slow pulse, name tag 'ถึงตาเล่น', other seats dimmed to 80%
+- 2026-10-24 13:24 fixed: crash-ish script error when the human goes first: turn toast used before it was built
+- 2026-10-24 13:24 fixed: turn_started connected after the UI is built; tests/startup_check.gd starts the table with 8 seeds (non-headless) to catch startup errors
+- 2026-10-24 13:26 toned down active-seat glow: border 3, glow 6 px at 30%, pulse +12% brightness
+- 2026-10-24 13:29 roll result popup: dice faces, total, big '+N เงิน', cards drawn (names for you, count for bots), bad-luck note; shows when the wheel stops, ~2 s, fades
+- 2026-10-24 13:33 your gold moved to a big coin counter at the felt's bottom-left (pops on change); removed from your seat's info line
+- 2026-10-24 13:38 effects now shown as badges above each seat (curses purple, truce blue, turns left; tooltip); center labels moved up 10 px
+- 2026-10-24 13:43 turn timer is now a bar round the acting seat's frame (clockwise from top centre, shrinks; red at 5 s; follows your seat during the 10 s defense choice); text timer removed
+- 2026-10-24 13:45 added seconds.milliseconds timer (e.g. 12.471, fixed-width, red at 5 s) left of your seat; border bar kept
+- 2026-10-24 13:46 timer digits shrunk to 14 px
+- 2026-10-24 13:48 gold counter: number only, centred in the pill (word 'เงิน' removed)
+- 2026-10-24 13:58 bots: heal/shield only when hurt, smallest card that does the job, no overheal except emergencies (HP 1-2 / shield 0); tests/bot_check.gd simulates bot games: 23 help cards, 0 wasted, 0 overheal
+- 2026-10-24 14:39 removed shields; block/hit effects with sounds (assets/sounds shield_block.wav, hurt.wav); hand shown as an overlapping fan, card under the mouse lifts; bot check: eliminations now happen
+- 2026-10-24 14:43 เสริมป้องกัน reworked to free block (status free_block, blue badge 'ป้องกันฟรี xN', defense prompt says the card is kept); bots play it only while holding a Defense card
+- 2026-10-24 21:06 roulette wheel replaced by DiceTray (scripts/dice_tray.gd): 3 dice fly in from the roller's seat, tumble with flickering faces, land on the result; button 'ทอยลูกเต๋า'; tests 'RULES OK'
+- 2026-10-24 21:15 done: Minigame guess-the-rank every 2 rounds + rewards
+- 2026-10-24 21:15 done: AI bots for all decisions
+- 2026-10-24 21:15 done: End: 5 rings or last alive -> result screen + Rematch
+- 2026-10-24 21:15 task 5: minigame (scripts/minigame.gd rules, minigame_panel.gd UI, data/minigame_ranks.json 4 questions); turns pause during it, rewards paid, ring exchange opens
+- 2026-10-24 21:15 task 6: bots answer minigames (near the top of the list, 10% pass), aim curses at the leader only when useful (no-items before an attack, no-shop on shard holders), buy a curse with spare gold
+- 2026-10-24 21:15 task 7: result screen (winner, reason, standings table, rounds/minigames) + Rematch/Quit; tests RULES OK, bot-only game ends with 5 rings in round 17, smoke 2400 frames PASS
+- 2026-10-24 21:15 phase -> CORE
+- 2026-10-24 21:15 MVP complete: phase -> CORE
+- 2026-10-24 21:25 shop: buying with a full hand asks which hand card to swap out (red outline, cancel/Esc); game.buy(p, slot, replace_index); tests RULES OK
+- 2026-10-25 02:18 user playtested: buying with a full hand works
+- 2026-10-25 02:26 done: Balance (later): 20-round bot test had zero eliminations; attacks may be too weak vs Defense x12 + shield 3
+- 2026-10-25 02:26 tests/balance_sim.gd: plays N bot games instantly, prints rounds, est. minutes, end type, eliminations, block rate; tried 8 variants, applied HP 4 / 2 shards / Attack 18 / Defense 8; tests use constants now; RULES OK, smoke 2400 PASS
+- 2026-10-25 02:36 done: later: first-person pixel-3D table (from mockup): SubViewport low-res 3D tavern, billboard pixel characters, physics dice, 2D HUD on top
+- 2026-10-25 02:36 first-person pixel-3D table: tavern_view.gd (room, candles, banners, round felt table, chairs, props, glow ring), dice3d.gd + pixel_tex.gd, placeholder bot sprites (tools/make_placeholder_art.py); HUD moved to the mockup layout, bigger fanned cards with price coin; 2D DiceTray removed; RULES OK, smoke 2400 PASS, startup OK
+- 2026-10-25 02:48 card art + effect visuals: icons.gd, vignette.gd, tavern_view hit/block/auras/status icons, seat chips as icon+turns, shop rows with icons; ShieldFx removed; RULES OK, smoke 2400 PASS
+- 2026-10-25 02:53 fixed orphan-node leaks (hidden card icon, bad-luck chip label); smoke 2400 PASS x2
+- 2026-10-25 03:00 bot defense balance: balance_sim now reports unarmed-target % and purchases; bot_brain _shop_score; tests RULES OK
+- 2026-10-25 03:11 done: later: real character art for assets/sprites/bot_*.png (and a player-hands sprite)
+- 2026-10-25 03:11 3D characters: character3d.gd (robe, big head with pixel face, hair, arms + card fan, horns / witch hat / elf hood, idle bob and look-around, modulate tint for hit/active/knocked-out), PixelTex.face; panels/log nudged so heads show; RULES OK, smoke 2400 PASS
+- 2026-10-25 03:32 HUD relayout: SeatPanel rewritten as top-bar card (portrait from PixelTex.portrait, max 3 effect chips + '+n'), round plate, history with [img] icons per line and fold button, bottom rail, button icons (shop / dice / swords / turn); HUD icons added to tools/make_icons.py; bots bigger (scale 1.15); RULES OK, smoke PASS, startup OK
+- 2026-10-25 03:45 click-to-target on 3D bots + hover glow, sharper render, own card first/blue/star, history side tab; tests/pick_check.gd (3 bots clicked and hit) PICK OK; RULES OK, smoke PASS
+- 2026-10-25 03:50 opening roll-off: GameController._roll_for_order/order_rolled/in_opening (no play or shop meanwhile), table._show_opening with badges and sliding cards; tests: order follows totals over 300 seeds, ties re-thrown, highest starts; RULES OK, PICK OK, smoke PASS
+- 2026-10-25 04:03 fixed: elf looked glitchy: hood sides and hair locks shared a face plane (z-fighting stripes), lantern washed out its face, chair not behind the turned bot
+- 2026-10-25 04:03 fixed: elf z-fighting (hood rebuilt as a shell clear of the hair; back hair narrowed for all bots; face quad moved out), lantern moved/dimmed, fill lights 0.9->0.6, chairs face the same way as their bots; RULES OK, PICK OK, smoke PASS
+- 2026-10-25 04:47 card throw animation (tavern_view.throw_card, table delays attack fx to landing) + face modes in PixelTex.face (open/blink/hurt/ko) used by Character3D; RULES OK, PICK OK, smoke PASS
+- 2026-10-25 05:31 characters: data/characters.json + CharacterDB, Character3D rebuilt (4 heroes with weapons, split/shatter/burn), AttackFx (4 attacks + 4 finishers, particles), CharacterSelect screen, weapon names/icons on your Attack card and in the log, GameController.hold; tests: characters + hold, shot_fx.gd for recordings; RULES OK, PICK OK, smoke PASS, startup OK
+- 2026-10-25 05:43 Final Arrow: victim snaps into the slumped pose on impact (arrow aimed at the slumped head), colour fades to the KO grey over 1.6 s (Character3D.pinned/head_point)
+- 2026-10-25 05:54 opening wait (OPENING_WAIT_SECONDS, opening_wait_left, countdown label) and win wait (RESULT_WAIT_SECONDS after the last finisher); RULES OK, PICK OK, smoke PASS
+- 2026-10-25 06:03 Dragon's Judgment reworked (user: too cute): narrow high-pressure fire jet (flickering white-hot core beam + tight spray + splash at the hit), target engulfed in flames, chars black over 1.6 s, flames die down over 1.6 s after 2.2 s, then smoke; finisher 4.0 s
+- 2026-10-25 06:18 fixed: burnt (Dragon's Judgment) bodies turned light again: ending/cancelling targeting reset every bot's colour
+- 2026-10-25 06:18 Dragon's Judgment victim chars fully black (CHARRED) and stays black; King's Verdict now a vertical chop: body duplicated into two halves drawn with a cut-plane shader (charred inside, glowing cut), halves part slowly over 2 s; RULES OK, PICK OK, smoke PASS
+- 2026-10-25 06:29 Soul Reap wounds + 1 s delay (Character3D.slash_mark/tremble), card drop on death (TavernView.drop_cards, table remembers the hand size at the killing blow); RULES OK, PICK OK, smoke PASS
+- 2026-10-25 06:34 fixed: after a knockout you could press Next / play cards / shop before the death animation finished; Final Arrow's hold ended before its colour fade
+- 2026-10-25 06:34 hold now blocks player actions and hides buttons (is_held, state_changed on start/end); tests added; RULES OK, PICK OK, smoke PASS
+- 2026-10-25 06:48 King's Verdict: halves part slowly for 1 s, then topple (the one facing the table only tips onto its edge); hollow cut capped in the shader with a burnt charcoal face and cooling embers; RULES OK, PICK OK, smoke PASS
+- 2026-10-25 07:27 Soul Reap: short wounds while shuddering 1 s, wounds tear to full length at once, burst 0.3 s later with a denser spray + lingering red mist; finisher 2.8 s; RULES OK, PICK OK, smoke PASS
+- 2026-10-25 07:35 Character3D attack_pose/finisher_pose rewritten with arm/hand motion, weapon reparented to grips, partial turn to target; AttackFx launches shots at release; RULES OK, PICK OK, smoke PASS, startup OK
+- 2026-10-25 07:51 sound: make_sounds.py, sfx.gd, sounds wired to attacks/finishers, hit/block/KO, dice, coins, card play/drop, round start, countdown tick/go, your turn, UI buttons/select/errors, minigame answers, win/lose; old hurt/shield_block placeholders removed; all 47 names used and present; RULES OK, PICK OK, smoke PASS, startup OK, audit 4.3 MB
+- 2026-10-25 08:00 reworked SFX: character select/UI, bow and arrow, swords, dice, coin/hit/block, all finishers (sub + saturation + room tail); highs >4 kHz under 2%, finisher energy 74-82% below 250 Hz; smoke PASS
+- 2026-10-25 08:25 sounds replaced: 47 synthesized files and tools/make_sounds.py removed; select.ogg, dice.ogg, sword.wav, bow.wav added (downloaded with the user's OK); only those are played; RULES OK, PICK OK, smoke PASS
+- 2026-10-25 08:32 sound lab built: candidates in tools/sound_lab/candidates (.gdignore), choices.json; confirm sound hooked to the start button; Sfx reads un-imported picks directly; lab opened for the user
+- 2026-10-25 08:39 user picked sounds in the lab: select=Kenney drop_002, confirm=confirmation_001, dice=dice-throw-2, sword=SSE sword hit 1, bow=SSE arrow whoosh; imported; RULES OK, smoke PASS
+- 2026-10-25 09:05 user picked 15 more slots in the sound lab (12 with sound; hurt, verdict, turn silent); all hooked and imported; sources in design.md; RULES OK, smoke PASS
+- 2026-10-25 09:07 user set hurt = RPG beetle bite-small2, verdict = Kenney impactMining_002 (reused from other slots' candidates); coin already only on your own purchases; RULES OK, smoke PASS
+- 2026-10-25 09:32 Interface from the user's 2 mockups: main menu (menu.tscn, now the main scene), Create Room (2-4 players, rings 3/5/7, unique characters), lobby with 3D lineup and character pick, Find Room / Join by Code screens (online coming soon), settings (name, volume), how to play, new results screen (winner card, ranked cards, stats, score details, rematch / find room / main menu). Table supports 2-4 seats. Tests: RULES OK, PICK OK, STARTUP OK, smoke PASS. New screenshot tests: tests/shot_menu.gd, tests/shot_seats.gd.
+- 2026-10-25 15:14 Main menu backdrop from the user's reference picture: scripts/menu_scene.gd (MenuScene extends TavernView): warm candle-lit table in the middle, candlestick, gold pot and stacks, mugs, window glow, dust, fog/glow; all 4 heroes seated playing (dice throws, cheer/hurt reactions, coins hop to the winner, cards flung). Character3D.throw_gesture()/cheer(). Tests: RULES OK, PICK OK, smoke PASS.
+- 2026-10-25 15:22 Menu camera now close on the table centre with a spring sway (inertia). Characters got legs: seated at the table/menu (chairs now have seats and legs), standing in lobby/results previews (preview camera shows head to feet). Character3D.clear() frees the cut shader on table exit. Tests: RULES/PICK/STARTUP OK, smoke PASS.
+- 2026-10-25 15:31 Menu camera now bird's eye (5.5 m up, ~14 deg tilt, up = far side so it stays level while swaying); heroes seated one per side of the table.
+- 2026-10-25 15:37 How to Play is now a 9-page screenshot slideshow (assets/howto/01..09, captions in main_menu.gd HOWTO). tests/shot_shop.gd got a 'defend' mode; tests/shot_menu.gd takes 'howto N'.
+- 2026-10-25 15:57 Create Room rebuilt from the user's settings outline: presets (standard / quick / chaos 'สายปั่น' / custom) + folding sections; phase-1 settings: turn time (game.step_seconds), password room, start mode, ready check in lobby (bots ready after 1-3 s, auto-start countdown); repeat characters always allowed. Fixed MenuScene.block() crash (base colours). Tests: RULES/PICK/STARTUP OK, smoke PASS.
+- 2026-10-25 16:19 Players 2-6: tavern ARC_LAYOUTS for 5-6, compact top-bar cards (no portrait, title hidden), results/lobby/minigame fit 6. New tests/seats_check.gd plays whole bot games with given player counts (2/5/6 all finish). Screenshots checked for 5 and 6. RULES/PICK/STARTUP OK, smoke PASS.
+- 2026-10-25 16:27 Bots now get random names (GameConfig.BOT_NAMES, drawn per room) instead of their character's name; character shown under names in lobby/results. Tests: RULES/PICK OK, smoke PASS.
+- 2026-10-25 16:42 Room settings: rings 3/5/7 or off (win only by knocking everyone out) and minigames on/off (off forces rings off; rings off = minigame pays gold only; ring UI hidden). New rules test test_room_switches. RULES/PICK OK, smoke PASS.
+- 2026-10-25 16:56 Final showdown (ช่วงชี้ขาด): from round 10 (rings off) / 16 (rings on) each player loses 1 HP at turn start. Rings-off games went from 92% unfinished by round 60 to all finishing in ~14 rounds. balance_sim takes [players] [norings]; seats_check takes NORINGS=1. RULES/PICK OK, smoke PASS.
+- 2026-10-31 13:29 Effect icons show their counts (top bar + over heads). Your own knockout: camera pulls out to watch the finisher on your hero, then back to first person (TavernView.watch_your_death; old screen-only finisher removed). New passive card ward_no_items (auto-lifts No Items, max 1 per hand). Rules tests test_ward added. RULES/PICK/STARTUP/SEATS OK, smoke PASS, balance unchanged (~10 rounds).
+- 2026-10-31 13:48 Fixes: ward card renamed กันห้ามไอเทม (shorter text); 'ใช้กับตัวเอง' button for cleanse cards; game-ending blow plays at full speed + full win-banner wait while spectating; leftovers of your own finisher cleared from in front of the camera. pick_check covers self-target. Tests OK.
+- 2026-10-31 14:01 Showdown knockouts now animate (Character3D.collapse; on you via the death camera) and the results wait for them; your body/chair hide before the camera glides back. Checked by recording: showdown death, decline-defense death, bot-vs-bot last blow. Tests OK.
+- 2026-10-31 14:14 Final showdown v2 (user's design): starts after 10 min of play (game clock); -1 HP per own turn plus every 3 turns max HP and hand limit -1 (min 1/3); on-screen timer then countdown plate. balance_sim clock runs at human pace. All games end ~11-16 min, but rings wins dropped (4p 33%, 6p 0%). Tests OK.
+- 2026-10-31 14:37 Showdown v3 per the user: no HP drain/clock; every 5 rounds max HP and hand limit -1 for all (floor 1/3); plate shows only rounds left. Bots now swap a spare Defense for an Attack when the hand is full (rings-off games stalled otherwise). All games end: rings-off 12-23 min, rings 18-23 min. Tests OK.
+- 2026-10-31 18:16 Dice scoring tip button (top right, hover/click) and price coin removed from hand cards. Tests OK.
+- 2026-11-02 16:05 Reverted to before the 2026-10-31 18:24 online request (user's order): online play, accounts, history, Vercel server, tests and export preset removed; game files restored from file-history; Vercel project roulette-fantasy-server and Upstash Redis deleted. Pre-revert copy: ../roulette-fantasy-online-backup-2026-11-02. RULES/PICK/STARTUP/SEATS/BOTCHECK OK, smoke PASS.

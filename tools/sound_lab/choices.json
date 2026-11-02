@@ -1,0 +1,21 @@
+{
+ "arrow_pin": "09.wav",
+ "block": "01.ogg",
+ "bow": "09.wav",
+ "burning": "05.wav",
+ "burst": "09.wav",
+ "card_play": "01.ogg",
+ "claw": "03.wav",
+ "coin": "09.wav",
+ "confirm": "01.ogg",
+ "dice": "02.ogg",
+ "dragon_fire": "04.wav",
+ "dragon_roar": "02.wav",
+ "hurt": "09.wav",
+ "lose": "04.ogg",
+ "magic_wave": "03.wav",
+ "select": "07.ogg",
+ "sword": "07.wav",
+ "verdict": "12.ogg",
+ "win": "07.ogg"
+}

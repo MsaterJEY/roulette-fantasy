@@ -1,0 +1,18 @@
+{
+  "_note": "MVP card list. count = copies in the draw pile; price = shop price in gold; phase: p2 (Combat only), any, reaction (only when attacked), passive (never played: works by itself); target: enemy, any, self, none. Effects are implemented in scripts/game.gd by id.",
+  "cards": [
+    {"id": "attack", "name": "โจมตี", "type": "attack", "count": 22, "price": 2, "phase": "p2", "desc": "โจมตีผู้เล่น 1 คน", "target": "enemy"},
+    {"id": "defense", "name": "ป้องกัน", "type": "defense", "count": 6, "price": 2, "phase": "reaction", "desc": "ป้องกันการโจมตี 1 ครั้ง", "target": "none"},
+    {"id": "heal_1", "name": "ฟื้นเลือด 1", "type": "help", "count": 4, "price": 3, "phase": "any", "desc": "ฟื้นเลือด 1", "target": "self"},
+    {"id": "heal_2", "name": "ฟื้นเลือด 2", "type": "help", "count": 2, "price": 4, "phase": "any", "desc": "ฟื้นเลือด 2", "target": "self"},
+    {"id": "gain_defense", "name": "เสริมป้องกัน", "type": "help", "count": 5, "price": 3, "phase": "any", "desc": "ป้องกันฟรี 1 ครั้ง: ครั้งถัดไปที่ใช้การ์ดป้องกัน การ์ดใบนั้นไม่หายจากมือ", "target": "self"},
+    {"id": "cleanse_1", "name": "ล้างคำสาป 1", "type": "help", "count": 3, "price": 3, "phase": "any", "desc": "ลบ Curse 1 อย่าง (เลือกใครก็ได้)", "target": "any"},
+    {"id": "ward_no_items", "name": "กันห้ามไอเทม", "type": "help", "count": 3, "price": 3, "phase": "passive", "desc": "กันคำสาปห้ามใช้ไอเทมให้เอง · ถือได้ 1 ใบ", "target": "none"},
+    {"id": "cleanse_all", "name": "ล้างคำสาปทั้งหมด", "type": "help", "count": 1, "price": 4, "phase": "any", "desc": "ลบ Curse ทั้งหมด (เลือกใครก็ได้)", "target": "any"},
+    {"id": "no_items", "name": "ห้ามใช้ไอเทม", "type": "curse", "count": 2, "price": 4, "phase": "any", "desc": "เป้าหมายใช้ไอเทมไม่ได้ 1 เทิร์น", "target": "enemy"},
+    {"id": "no_shop", "name": "ห้ามซื้อของ", "type": "curse", "count": 2, "price": 4, "phase": "any", "desc": "เป้าหมายซื้อของไม่ได้ 2 เทิร์น", "target": "enemy"},
+    {"id": "truce", "name": "สงบศึก", "type": "curse", "count": 2, "price": 4, "phase": "any", "desc": "2 เทิร์น: ผู้ใช้โจมตีใครไม่ได้ และไม่มีใครโจมตีผู้ใช้ได้", "target": "none"},
+    {"id": "bad_luck", "name": "ดวงซวย", "type": "curse", "count": 2, "price": 4, "phase": "any", "desc": "การทอยลูกเต๋าครั้งถัดไปของเป้าหมายได้ผลต่ำลง 1 ระดับ", "target": "enemy"},
+    {"id": "blind", "name": "ตาบอด", "type": "curse", "count": 2, "price": 4, "phase": "any", "desc": "เป้าหมายมองไม่เห็นการ์ดในมือ 2 เทิร์น", "target": "enemy"}
+  ]
+}

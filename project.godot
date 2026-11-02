@@ -1,0 +1,22 @@
+; Godot 4 project for Roulette Fantasy
+
+config_version=5
+
+[application]
+
+config/name="Roulette Fantasy"
+run/main_scene="res://menu.tscn"
+run/max_fps=60
+config/features=PackedStringArray("4.3")
+
+[display]
+
+window/size/viewport_width=960
+window/size/viewport_height=540
+window/stretch/mode="canvas_items"
+window/vsync/vsync_mode=1
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

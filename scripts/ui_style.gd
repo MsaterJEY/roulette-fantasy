@@ -31,6 +31,11 @@ static func make_theme() -> Theme:
 	# Windows fonts with Thai glyphs first; Godot's built-in font has no Thai.
 	font.font_names = PackedStringArray(["Leelawadee UI", "Tahoma", "Segoe UI"])
 	t.default_font = font
+	if OS.has_feature("web"):  # a browser has no system fonts: bundled Noto fonts (OFL)
+		var web: FontFile = load("res://assets/fonts/NotoSansThai.ttf")
+		web.fallbacks = [load("res://assets/fonts/NotoSansSymbols2-Regular.ttf"),  # ★ ◆ ▲ ♥ ✕
+			load("res://assets/fonts/NotoSansMath-Regular.ttf")]  # →
+		t.default_font = web
 	t.default_font_size = 14
 	t.set_color("font_color", "Label", TEXT)
 	t.set_color("default_color", "RichTextLabel", TEXT)

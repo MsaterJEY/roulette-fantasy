@@ -67,6 +67,7 @@ var result_panel: ResultPanel
 var _targeting: Dictionary = {}  # {"index": hand index, "card": card} while choosing a target
 var _hand_map: Array[int] = []  # button order -> hand index (shuffled while blind)
 var _replacing := -1  # shop slot being bought with a full hand: click a hand card to swap it out
+var _hand_sig := ""  # what the hand buttons show; online snapshots come 4x a second and mustn't rebuild them
 var _order_badges: Array[PanelContainer] = []  # opening roll result under each player card
 var _card_lands_ms := 0  # when the card in flight arrives: hit/block effects wait for it
 var _ko_until_ms: Dictionary = {}  # seat -> when its finisher ends (the knockout pose waits)
@@ -761,10 +762,16 @@ func _build_hand() -> void:
 
 
 func _fill_hand() -> void:
+	var me := game.players[0]
+	# rebuilding drops the hover under the mouse (the card flickers and can't be clicked)
+	var names := me.hand.map(func(c: Dictionary) -> String: return game.card_name(me, c) + game.card_icon(me, c))
+	var sig := str([me.hand, names, me.has("blind"), _replacing, _targeting.get("index", -1)])
+	if sig == _hand_sig and hand_box.get_child_count() == me.hand.size():
+		return
+	_hand_sig = sig
 	for child in hand_box.get_children():
 		hand_box.remove_child(child)
 		child.queue_free()
-	var me := game.players[0]
 	_hand_map.assign(range(me.hand.size()))
 	var blind := me.has("blind")
 	if blind:

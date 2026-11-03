@@ -132,7 +132,7 @@ func _refresh() -> void:
 		for r in _results:
 			_answers.append_text("ที่ %d  %s  %d แต้ม  →  เศษแหวน +%d  เงิน +%d\n" % [
 				r["place"], game.players[r["seat"]].display_name, r["score"], r["shards"], r["gold"]])
-	var mine := not mg.done() and game.is_human(game.players[mg.current_seat()])
+	var mine := not mg.done() and game.is_me(game.players[mg.current_seat()])
 	_input_row.visible = mine
 	if mine:
 		_input.grab_focus.call_deferred()
@@ -148,6 +148,6 @@ func _process(_delta: float) -> void:
 		_turn.text = "จบมินิเกม · เกมจะเล่นต่อในไม่ช้า"
 		return
 	var p := game.players[mg.current_seat()]
-	var who := "ตาของคุณ!" if game.is_human(p) else "ตาของ %s" % p.display_name
+	var who := "ตาของคุณ!" if game.is_me(p) else "ตาของ %s" % p.display_name
 	_turn.text = "%s   เหลือ %.1f วินาที" % [who, maxf(mg.time_left, 0.0)]
 	_turn.add_theme_color_override("font_color", Color("ff5a4f") if mg.time_left <= 5.0 else UiStyle.ACTIVE)

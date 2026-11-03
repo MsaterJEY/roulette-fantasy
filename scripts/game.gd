@@ -6,6 +6,9 @@ extends Node
 ## respond_defense() for the human player; bots go through BotBrain.
 
 signal log_added(bbcode: String)
+## Every log line, for online play: `owner` (a seat) sees `text`, everyone else `others` ("" =
+## nothing); owner -1 = everyone sees `text`. log_added carries what seat 0 (you) sees.
+signal log_entry(owner: int, text: String, others: String)
 signal state_changed
 ## drawn = names of the cards drawn after the roll; unlucky = bad luck lowered the result
 signal rolled(seat: int, dice: Array[int], gold: int, drawn: Array[String], unlucky: bool)
@@ -110,14 +113,21 @@ var _hold := 0.0  # real seconds the game waits for an animation (an attack, a f
 var opening_rolls: Array[Dictionary] = []
 var _minigame_close := 0.0  # seconds the results stay up
 var _question_bag: Array[int] = []  # question indexes not asked yet this game
+## Online guest: this game only mirrors the host's (GameSync.apply). Its clocks run on between
+## updates, nothing else happens here, and your actions go to the host through `remote`
+## (name, args) instead of being applied.
+var remote := Callable()
+var remote_held := false  # the host is waiting for an animation
 
 
-## `characters[seat]`: each seat's character id (optional; tests play without).
-func start_game(names: Array, characters: Array = []) -> void:
+## `characters[seat]`: each seat's character id (optional; tests play without). `humans[seat]`:
+## seats played by people (online); without it, seat 0 (you) only.
+func start_game(names: Array, characters: Array = [], humans: Array = []) -> void:
 	rng.randomize()
 	players.clear()
 	for i in names.size():
-		players.append(PlayerData.new(i, names[i], i != 0))
+		var human: bool = humans[i] if i < humans.size() else i == 0
+		players.append(PlayerData.new(i, names[i], not human))
 		if i < characters.size():
 			players[i].character = characters[i]
 	deck = CardDB.make_deck(rng)
@@ -188,7 +198,7 @@ func hold(seconds: float) -> void:
 
 
 func is_held() -> bool:
-	return _hold > 0.0
+	return _hold > 0.0 or remote_held
 
 
 ## Seconds left of the wait before the opening throws start (0 once they have).
@@ -213,6 +223,20 @@ func is_human_turn() -> bool:
 	return is_human(current()) and not finished
 
 
+## `p` is you: seat 0 is always the one at this screen (online guests see the table turned
+## so that they sit at seat 0 too).
+func is_me(p: PlayerData) -> bool:
+	return p.seat == 0 and is_human(p)
+
+
+func is_my_turn() -> bool:
+	return is_me(current()) and not finished
+
+
+func is_mirror() -> bool:
+	return remote.is_valid()
+
+
 func step_name() -> String:
 	return STEP_NAMES[step]
 
@@ -227,6 +251,9 @@ func alive_players() -> Array[PlayerData]:
 
 func _process(delta: float) -> void:
 	if players.is_empty() or finished:
+		return
+	if is_mirror():
+		_mirror_tick(delta)
 		return
 	if _hold > 0.0:
 		_hold -= delta
@@ -266,9 +293,36 @@ func _process(delta: float) -> void:
 			advance()
 
 
+## A guest's copy between the host's updates: the clocks the screen shows keep running.
+func _mirror_tick(delta: float) -> void:
+	if _hold > 0.0:
+		_hold -= delta
+		if _hold <= 0.0:
+			state_changed.emit()
+	if remote_held:
+		return
+	var d := delta * speed
+	if _opening > 0.0:
+		_opening -= d
+	elif minigame != null:
+		if minigame.done():
+			_minigame_close -= d
+		else:
+			minigame.time_left -= d
+	elif not pending_attack.is_empty():
+		pending_attack["time"] -= d
+	elif _pause > 0.0:
+		_pause -= d
+	else:
+		time_left -= d
+
+
 # ---------- turn actions ----------
 
 func roll_dice() -> void:
+	if is_mirror():
+		remote.call("advance", [])
+		return
 	if step != Step.ROLL or _pause > 0.0 or _hold > 0.0 or finished:
 		return
 	var p := current()
@@ -290,6 +344,10 @@ func roll_dice() -> void:
 
 
 func advance() -> void:
+	if is_mirror():
+		if not is_held():
+			remote.call("advance", [])
+		return
 	if _opening > 0.0 or _pause > 0.0 or _hold > 0.0 or not pending_attack.is_empty() or finished or minigame != null:
 		return
 	match step:
@@ -359,8 +417,11 @@ func play_card(p: PlayerData, hand_index: int, target_seat: int = -1) -> bool:
 		reason = "เป้าหมายนี้เลือกไม่ได้"
 	if reason != "":
 		if is_human(p):
-			_log("[color=#ff6b6b]%s[/color]" % reason)
+			_log("[color=#ff6b6b]%s[/color]" % reason, p.seat)
 		return false
+	if is_mirror():
+		remote.call("play_card", [hand_index, target_seat])
+		return true
 	p.hand.remove_at(hand_index)
 	discard.append(card)
 	if step == Step.ROLL:
@@ -504,8 +565,11 @@ func buy(p: PlayerData, slot: int, replace_index: int = -1) -> bool:
 		reason = "มือเต็ม (%d ใบ): เลือกการ์ดในมือที่จะทิ้ง" % hand_limit
 	if reason != "":
 		if is_human(p):
-			_log("[color=#ff6b6b]%s[/color]" % reason)
+			_log("[color=#ff6b6b]%s[/color]" % reason, p.seat)
 		return false
+	if is_mirror():
+		remote.call("buy", [slot, replace_index])
+		return true
 	var card := shop[slot]
 	shop[slot] = {}
 	p.gold -= int(card["price"])
@@ -515,8 +579,9 @@ func buy(p: PlayerData, slot: int, replace_index: int = -1) -> bool:
 		discard.append(p.hand[replace_index])
 		p.hand.remove_at(replace_index)
 	p.hand.append(card)
-	_log("%s ซื้อ [b]%s[/b] (%d เงิน)%s" % [p.display_name, card_name(p, card) if not p.is_bot else "การ์ด 1 ใบ",
-		card["price"], "" if dropped == "" or p.is_bot else " ทิ้ง %s" % dropped])
+	_log("%s ซื้อ [b]%s[/b] (%d เงิน)%s" % [p.display_name, card_name(p, card), card["price"],
+		"" if dropped == "" else " ทิ้ง %s" % dropped], p.seat,
+		"%s ซื้อ [b]การ์ด 1 ใบ[/b] (%d เงิน)" % [p.display_name, card["price"]])
 	bought.emit(p.seat, card)
 	_ward_check(p)
 	state_changed.emit()
@@ -542,8 +607,11 @@ func exchange_ring(p: PlayerData) -> bool:
 	var reason := can_exchange(p)
 	if reason != "":
 		if is_human(p):
-			_log("[color=#ff6b6b]%s[/color]" % reason)
+			_log("[color=#ff6b6b]%s[/color]" % reason, p.seat)
 		return false
+	if is_mirror():
+		remote.call("exchange_ring", [])
+		return true
 	p.shards -= SHARDS_PER_RING
 	p.rings += 1
 	_log("[color=#f0c419]%s แลกเศษแหวนเป็น [b]แหวน[/b] (มี %d/%d วง)[/color]" % [
@@ -570,6 +638,9 @@ func _start_attack(a: PlayerData, t: PlayerData) -> void:
 ## The human target's answer to an incoming attack.
 func respond_defense(use_card: bool) -> void:
 	if pending_attack.is_empty():
+		return
+	if is_mirror():
+		remote.call("respond_defense", [use_card])
 		return
 	var a := players[pending_attack["attacker"]]
 	var t := players[pending_attack["target"]]
@@ -611,8 +682,8 @@ func _eliminate(t: PlayerData, by: PlayerData) -> void:
 	t.hand.clear()
 	t.statuses.clear()
 	_log("[color=#ff6b6b][b]%s ตกรอบ![/b] (%s)[/color]" % [t.display_name, "โดย " + by.display_name if by else "ช่วงชี้ขาด"])
-	if is_human(t):
-		speed = maxf(speed, SPECTATE_SPEED)
+	if is_human(t) and not alive_players().any(func(q: PlayerData) -> bool: return is_human(q)):
+		speed = maxf(speed, SPECTATE_SPEED)  # no one left to play: the bots finish it quickly
 	var left := alive_players()
 	if left.size() == 1:
 		_finish(left[0], "เหลือรอดคนสุดท้าย")
@@ -751,6 +822,9 @@ func minigame_answer(p: PlayerData, text: String) -> String:
 	var reason := minigame.check_answer(text)
 	if reason != "":
 		return reason
+	if is_mirror():
+		remote.call("minigame_answer", [text])
+		return ""
 	var e := minigame.submit(text)
 	if e["text"] == "":
 		_log("%s ไม่ตอบ (+0)" % p.display_name)
@@ -824,14 +898,17 @@ func _draw(p: PlayerData, n: int, announce: bool) -> Array[String]:
 			p.hand.append(card)
 			drawn.append(card["name"])
 	if announce and not drawn.is_empty():
-		if p.is_bot:
-			_log("%s จั่วการ์ด %d ใบ" % [p.display_name, drawn.size()])
-		else:
-			_log("คุณจั่วได้: " + ", ".join(drawn))
+		_log("คุณจั่วได้: " + ", ".join(drawn), p.seat, "%s จั่วการ์ด %d ใบ" % [p.display_name, drawn.size()])
 	return drawn
 
 
-func _log(text: String) -> void:
+## A line in the history. `owner` >= 0: only that seat sees `text`, the others see `others`
+## ("" = nothing): what you bought or drew stays yours.
+func _log(text: String, owner := -1, others := "") -> void:
 	if autoplay:
 		print(text)  # smoke-test logs show the whole game flow
-	log_added.emit(text)
+	var mine := owner < 0 or (owner == 0 and is_human(players[0]))
+	var shown := text if mine else others
+	if shown != "":
+		log_added.emit(shown)
+	log_entry.emit(owner, text, others)

@@ -77,7 +77,7 @@ func _ready() -> void:
 	theme = UiStyle.make_theme()
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	game = GameController.new()
-	if DisplayServer.get_name() == "headless":
+	if DisplayServer.get_name() == "headless" and not NetPlay.node().online():
 		# smoke tests: bots play every seat, fast
 		game.autoplay = true
 		game.speed = 8.0
@@ -102,6 +102,11 @@ func _ready() -> void:
 		auto_pick = "random"
 	if auto_pick != "":
 		_start(CharacterDB.ids().pick_random() if auto_pick == "random" else auto_pick)
+	elif NetPlay.node().is_guest():  # online: the host's game arrives, then the table is set up from it
+		NetPlay.node().attach_guest(game, _start.bind(GameConfig.characters[0]))
+	elif NetPlay.node().is_host():  # online: everyone's table is open before the game starts
+		NetPlay.node().attach_host(game)
+		NetPlay.node().when_guests_ready(_start.bind(GameConfig.characters[0]))
 	elif GameConfig.characters.size() == _seat_count:
 		_start(GameConfig.characters[0])  # seated in the lobby
 	else:
@@ -121,6 +126,7 @@ func _start(my_id: String) -> void:
 	if GameConfig.characters.size() != _seat_count or GameConfig.characters[0] != my_id:
 		GameConfig.players = _seat_count
 		GameConfig.fill_seats(my_id)  # no lobby (tests, or the table run on its own)
+		GameConfig.humans.clear()
 	var ids: Array = GameConfig.characters.duplicate()
 	var names: Array = GameConfig.names.duplicate()
 	game.rings_to_win = GameConfig.rings_to_win
@@ -128,7 +134,10 @@ func _start(my_id: String) -> void:
 	game.step_seconds = GameConfig.turn_seconds
 	SeatPanel.rings_max = GameConfig.rings_to_win
 	SeatPanel.hp_max = game.max_hp  # static: back to full after last game's shrinking
-	game.start_game(names, ids)
+	if not game.is_mirror():  # a guest's game is already the host's
+		game.start_game(names, ids, GameConfig.humans)
+	if NetPlay.node().is_host():
+		NetPlay.node().send_init()
 	tavern.sfx = sfx
 	tavern.setup_characters(ids)
 	game.bought.connect(func(seat: int, _card: Dictionary) -> void:
@@ -310,10 +319,10 @@ func refresh_all() -> void:
 		_opening_countdown()
 		for s in seats:
 			s.set_active(false)
-	if not game.is_human_turn() or game.finished:
+	if not game.is_my_turn() or game.finished:
 		_cancel_targeting()
-	defense_panel.visible = not game.pending_attack.is_empty()
-	var shop_open := game.is_human_turn() and game.step == GameController.Step.PHASE1 		and game.pending_attack.is_empty() and game.minigame == null and not game.in_opening() 		and not game.is_held()
+	defense_panel.visible = not game.pending_attack.is_empty() and int(game.pending_attack["target"]) == 0
+	var shop_open := game.is_my_turn() and game.step == GameController.Step.PHASE1 		and game.pending_attack.is_empty() and game.minigame == null and not game.in_opening() 		and not game.is_held()
 	shop_button.visible = shop_open
 	if not shop_open:
 		shop_panel.visible = false
@@ -327,7 +336,7 @@ func refresh_all() -> void:
 
 
 func _update_action_button() -> void:
-	action_button.visible = game.is_human_turn() and game.pending_attack.is_empty() and game.minigame == null 		and not game.is_held() \
+	action_button.visible = game.is_my_turn() and game.pending_attack.is_empty() and game.minigame == null 		and not game.is_held() \
 		and not game.in_opening()
 	match game.step:
 		GameController.Step.ROLL:
@@ -349,11 +358,11 @@ func _on_rolled(seat: int, dice: Array[int], gold: int, drawn: Array[String], un
 ## Big result card over the dice once they land: dice faces, "+N เงิน", cards drawn.
 func _show_roll_result(p: PlayerData, dice: Array[int], gold: int, drawn: Array[String],
 		unlucky: bool, delay: float) -> void:
-	roll_title.text = ("คุณทอยได้" if not p.is_bot else "%s ทอยได้" % p.display_name) 		+ "  (รวม %d)" % (dice[0] + dice[1] + dice[2])
+	roll_title.text = ("คุณทอยได้" if game.is_me(p) else "%s ทอยได้" % p.display_name) 		+ "  (รวม %d)" % (dice[0] + dice[1] + dice[2])
 	for i in 3:
 		roll_dice[i].value = dice[i]
 	roll_gold.text = "+%d เงิน" % gold + ("   (ดวงซวย −1)" if unlucky else "")
-	if p.is_bot:
+	if not game.is_me(p):
 		roll_cards.text = "จั่วการ์ด %d ใบ" % drawn.size()
 	elif drawn.is_empty():
 		roll_cards.text = "มือเต็ม จั่วการ์ดไม่ได้"
@@ -1105,6 +1114,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _on_attack_incoming(attacker: int, target: int) -> void:
+	if target != 0:
+		return  # online: someone else decides whether to block
 	var free: bool = game.players[target].has("free_block")
 	defense_label.text = "%s โจมตีคุณ!\nใช้การ์ดป้องกันไหม?%s" % [game.players[attacker].display_name,
 		"\n(ป้องกันฟรี: การ์ดไม่หาย)" if free else ""]
@@ -1303,7 +1314,7 @@ func _build_turn_toast() -> void:
 
 ## "Your turn!" in the middle of the table: pop in, hold, fade out.
 func _on_turn_started(_seat: int) -> void:
-	if not game.is_human_turn():
+	if not game.is_my_turn():
 		return
 	sfx.play("turn")
 	turn_toast.modulate.a = 0.0

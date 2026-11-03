@@ -9,6 +9,10 @@ run/main_scene="res://menu.tscn"
 run/max_fps=60
 config/features=PackedStringArray("4.3")
 
+[autoload]
+
+Net="*res://scripts/net.gd"
+
 [display]
 
 window/size/viewport_width=960

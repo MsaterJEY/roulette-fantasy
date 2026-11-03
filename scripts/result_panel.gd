@@ -52,7 +52,14 @@ func _ready() -> void:
 	right.add_theme_constant_override("separation", 10)
 	add_child(right)
 	var again := MenuUi.big_button("swords", "เล่นต่อ", "", true, 164)
-	again.pressed.connect(func() -> void: get_tree().reload_current_scene())
+	again.pressed.connect(func() -> void:
+		if NetPlay.node().online():  # the same room again: back to its lobby
+			if NetPlay.node().is_host():
+				NetPlay.node().back_to_lobby()
+			MainMenu.start_screen = "lobby"
+			get_tree().change_scene_to_file(MENU_SCENE)
+		else:
+			get_tree().reload_current_scene())
 	right.add_child(again)
 	var find := MenuUi.big_button("cards", "ค้นหาห้องใหม่", "", false, 164)
 	find.pressed.connect(_to_menu.bind("find"))
@@ -117,6 +124,7 @@ func _show_page(tab: String) -> void:
 
 
 func _to_menu(screen: String) -> void:
+	NetPlay.node().leave()
 	MainMenu.start_screen = screen
 	get_tree().change_scene_to_file(MENU_SCENE)
 
@@ -157,7 +165,7 @@ func _build_summary() -> Control:
 	rank.add_theme_color_override("font_outline_color", Color("2a1408"))
 	rank.add_theme_constant_override("outline_size", 8)
 	info.add_child(rank)
-	info.add_child(MenuUi.label(("คุณชนะ!  " if _game.is_human(w) else "") + w.display_name, 22, UiStyle.TEXT))
+	info.add_child(MenuUi.label(("คุณชนะ!  " if _game.is_me(w) else "") + w.display_name, 22, UiStyle.TEXT))
 	if _character_name(w) != w.display_name:
 		info.add_child(MenuUi.label(_character_name(w), 14, UiStyle.TEXT_DIM))
 	var reason := MenuUi.label(_game.win_reason, 13, UiStyle.TEXT_DIM)
@@ -187,7 +195,7 @@ func _build_summary() -> Control:
 
 
 func _rank_card(p: PlayerData, place: int, w: float) -> PanelContainer:
-	var me := _game.is_human(p)
+	var me := _game.is_me(p)
 	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(w, 0)
 	var border := MenuUi.GOLD if place == 1 else (Color("4f8fd6") if me else MenuUi.GOLD_DARK)
@@ -272,7 +280,7 @@ func _build_score() -> Control:
 	box.add_child(grid)
 	grid.add_child(MenuUi.label("", 14))
 	for q in ranked:
-		grid.add_child(_cell(q.display_name, MenuUi.GOLD if _game.is_human(q) else UiStyle.TEXT))
+		grid.add_child(_cell(q.display_name, MenuUi.GOLD if _game.is_me(q) else UiStyle.TEXT))
 	var lines: Array = score_parts(ranked[0], _winner)
 	for i in lines.size():
 		var each: int = SCORE.values()[i]
@@ -313,7 +321,7 @@ func _build_items() -> Control:
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 10)
 		box.add_child(row)
-		var name := MenuUi.label(q.display_name, 15, MenuUi.GOLD if _game.is_human(q) else UiStyle.TEXT)
+		var name := MenuUi.label(q.display_name, 15, MenuUi.GOLD if _game.is_me(q) else UiStyle.TEXT)
 		name.custom_minimum_size = Vector2(130, 0)
 		name.clip_text = true
 		row.add_child(name)

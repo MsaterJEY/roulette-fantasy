@@ -425,8 +425,9 @@ func _flame_jet(from: Vector3, to: Vector3, duration: float) -> void:
 		jet.emitting = false
 		splash.emitting = false)
 	tv.get_tree().create_timer(duration + 0.6).timeout.connect(func() -> void:
-		jet.queue_free()
-		splash.queue_free())
+		for n: Node in [jet, splash]:
+			if is_instance_valid(n):  # gone already if the table closed meanwhile
+				n.queue_free())
 
 
 ## The target on fire: flames rising all over its body at full strength for `full` seconds,

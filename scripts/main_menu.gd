@@ -11,6 +11,8 @@ const W := 960.0
 
 ## Which screen opens first: the results screen's "ค้นหาห้องใหม่" sets "find".
 static var start_screen := "home"
+## A message to show when the menu opens (e.g. why an online game ended).
+static var notice := ""
 
 var sfx: Sfx
 var _screens: Dictionary = {}  # name -> Control
@@ -38,7 +40,10 @@ var _chat_log: RichTextLabel
 ## Ready check: everyone presses Ready (the bots after a moment); then the host starts, or in
 ## "auto" rooms a countdown starts the game by itself.
 const AUTO_START_SECONDS := 3.0
-var _ready_flags: Array[bool] = []
+const FIND_REFRESH_SECONDS := 3.0
+var _find_refresh := 0.0
+var _room_rows: VBoxContainer
+var _room_empty: Label
 var _ready_btn: Button
 var _start_btn: Button
 var _lobby_gen := 0  # bumped on each lobby entry, so old bot timers do nothing
@@ -77,8 +82,22 @@ func _ready() -> void:
 		add_child(s)
 	_build_badge()
 	_build_toast()
+	NetPlay.node().lobby_changed.connect(_render_lobby)
+	NetPlay.node().chat.connect(func(b: String) -> void: _chat(b))
+	NetPlay.node().rooms_listed.connect(_fill_rooms)
+	NetPlay.node().joined.connect(func() -> void:
+		toast("เข้าห้องแล้ว")
+		show_screen("lobby"))
+	NetPlay.node().failed.connect(func(why: String) -> void:
+		toast(why)
+		if _screens["lobby"].visible:
+			NetPlay.node().seats.clear()
+			show_screen("home"))
 	show_screen(start_screen)
 	start_screen = "home"
+	if notice != "":
+		toast(notice)
+		notice = ""
 
 
 func _exit_tree() -> void:
@@ -91,6 +110,8 @@ func show_screen(screen: String) -> void:
 		_screens[k].visible = k == screen
 	if screen == "lobby":
 		_enter_lobby()
+	elif screen == "find":
+		_find_refresh = 0.0
 
 
 func _screen() -> Control:
@@ -172,7 +193,7 @@ func _build_home() -> Control:
 	return s
 
 
-# ---------- find room / join by code (online: not built yet) ----------
+# ---------- find room / join by code ----------
 
 func _build_find() -> Control:
 	var s := _screen()
@@ -189,19 +210,20 @@ func _build_find() -> Control:
 		l.custom_minimum_size = Vector2(h[1], 0)
 		head.add_child(l)
 	box.add_child(HSeparator.new())
-	var empty := VBoxContainer.new()
-	empty.alignment = BoxContainer.ALIGNMENT_CENTER
-	empty.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	box.add_child(empty)
-	var ic := Icons.rect("cards", 56)
-	ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	ic.modulate = Color(1, 1, 1, 0.5)
-	empty.add_child(ic)
-	for line: Array in [["โหมดออนไลน์กำลังพัฒนา", 20, UiStyle.TEXT], ["ยังไม่มีห้องของผู้เล่นคนอื่นให้เข้า", 14, UiStyle.TEXT_DIM],
-			["ตอนนี้เล่นกับบอทได้ที่ \"สร้างห้อง\"", 14, UiStyle.TEXT_DIM]]:
-		var l := MenuUi.label(line[0], line[1], line[2])
-		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		empty.add_child(l)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	box.add_child(scroll)
+	_room_rows = VBoxContainer.new()
+	_room_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_room_rows.add_theme_constant_override("separation", 6)
+	scroll.add_child(_room_rows)
+	_room_empty = MenuUi.label("", 15, UiStyle.TEXT_DIM)
+	_room_empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_room_empty.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_room_empty.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	box.add_child(_room_empty)
+	_fill_rooms([])
 	var go := MenuUi.big_button("swords", "สร้างห้องแทน", "", true, 210)
 	go.position = Vector2(W - 230, 473)  # level with Back (488-522)
 	go.pressed.connect(show_screen.bind("create"))
@@ -247,14 +269,84 @@ func _build_join() -> Control:
 		if code.text.length() < 6:
 			toast("เลขห้องต้องมี 6 หลัก")
 		else:
-			toast("โหมดออนไลน์กำลังพัฒนา · ยังเข้าห้อง #%s ไม่ได้" % code.text))
+			_join(code.text))
 	code.text_submitted.connect(func(_t: String) -> void: join.pressed.emit())
 	box.add_child(join)
-	var note := MenuUi.label("(ออนไลน์เร็วๆ นี้ · ตอนนี้เล่นกับบอทได้ที่ \"สร้างห้อง\")", 12, UiStyle.TEXT_DIM)
+	var note := MenuUi.label("ห้องที่มีรหัสผ่าน จะถามรหัส 4 หลักหลังกดเข้าร่วม", 12, UiStyle.TEXT_DIM)
 	note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(note)
 	_back(s)
 	return s
+
+
+## The open rooms from the room API, each with a Join button.
+func _fill_rooms(rooms: Array) -> void:
+	if _room_rows == null:
+		return
+	for child in _room_rows.get_children():
+		child.queue_free()
+	for r: Dictionary in rooms:
+		var row := HBoxContainer.new()
+		var cells := [[("🔒 " if r.get("locked") else "") + str(r.get("name", "")), 300],
+			["%d/%d" % [int(r.get("count", 1)), int(r.get("max", 4))], 120],
+			[str(int(r.get("rings", 0))) + " วง" if int(r.get("rings", 0)) > 0 else "ไม่ใช้", 100]]
+		for c: Array in cells:
+			var l := MenuUi.label(c[0], 14)
+			l.custom_minimum_size = Vector2(c[1], 0)
+			l.clip_text = true
+			row.add_child(l)
+		var go := MenuUi.small_button("  เข้าร่วม  ", "", 100)
+		go.pressed.connect(_join.bind(str(r.get("code", ""))))
+		row.add_child(go)
+		_room_rows.add_child(row)
+	if not NetPlay.node().available():
+		_room_empty.text = "เล่นออนไลน์ได้บนเว็บของเกม
+เวอร์ชันนี้เล่นกับบอทได้ที่ \"สร้างห้อง\""
+	elif rooms.is_empty():
+		_room_empty.text = "ยังไม่มีห้องเปิดอยู่
+สร้างห้องเอง แล้วส่งเลขห้องให้เพื่อน"
+	else:
+		_room_empty.text = ""
+	_room_empty.visible = _room_empty.text != ""
+
+
+## Join room `room_code` (asking for its password if it has one).
+func _join(room_code: String, password := "") -> void:
+	if not NetPlay.node().available():
+		toast("เล่นออนไลน์ได้บนเว็บของเกม")
+		return
+	toast("กำลังเชื่อมต่อห้อง %s..." % room_code)
+	NetPlay.node().seats.clear()
+	var on_fail := func(why: String) -> void:
+		if why == NetPlay.WRONG_PASSWORD or why == NetPlay.NEED_PASSWORD:
+			_ask_password(room_code, why == NetPlay.WRONG_PASSWORD and password != "")
+	NetPlay.node().failed.connect(on_fail, CONNECT_ONE_SHOT)
+	NetPlay.node().joined.connect(func() -> void:
+		if NetPlay.node().failed.is_connected(on_fail):
+			NetPlay.node().failed.disconnect(on_fail), CONNECT_ONE_SHOT)
+	NetPlay.node().join(room_code, password)
+
+
+func _ask_password(room_code: String, wrong: bool) -> void:
+	var box := _open_modal("รหัสผ่านห้อง", Vector2(360, 200))
+	if wrong:
+		box.add_child(MenuUi.label("รหัสไม่ถูกต้อง ลองใหม่", 13, Color("ff8a7a")))
+	var pw := LineEdit.new()
+	pw.max_length = 4
+	pw.placeholder_text = "0000"
+	pw.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pw.custom_minimum_size = Vector2(160, 44)
+	pw.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	pw.add_theme_font_size_override("font_size", 24)
+	box.add_child(pw)
+	var ok := MenuUi.small_button("  เข้าร่วม  ", "", 120)
+	ok.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	ok.pressed.connect(func() -> void:
+		_close_modal()
+		_join(room_code, pw.text))
+	pw.text_submitted.connect(func(_t: String) -> void: ok.pressed.emit())
+	box.add_child(ok)
+	pw.grab_focus.call_deferred()
 
 
 # ---------- create room ----------
@@ -503,14 +595,22 @@ func _update_summary() -> void:
 
 
 
+## The room opens: online (in the browser) others can find and join it; the free places are
+## the bots'.
 func _create_room() -> void:
 	sfx.play("confirm")
 	if GameConfig.room_name == "":
 		GameConfig.room_name = "ห้องของฉัน"
 	GameConfig.new_room_code()
 	GameConfig.roll_bot_names()
-	GameConfig.characters.clear()
-	show_screen("lobby")
+	if NetPlay.node().available():
+		toast("กำลังเปิดห้องออนไลน์...")
+	NetPlay.node().create_room(_my_char(), func(err: String) -> void:
+		if err != "":
+			toast(err)
+		elif NetPlay.node().online():
+			toast("เปิดห้องแล้ว · เลขห้อง %s" % NetPlay.node().code)
+		show_screen("lobby"))
 
 
 # ---------- lobby ----------
@@ -586,17 +686,20 @@ func _build_lobby() -> Control:
 	say.max_length = 60
 	say.add_theme_stylebox_override("normal", UiStyle.panel(Color("120c08"), MenuUi.GOLD_DARK, 1, 6))
 	say.text_submitted.connect(func(t: String) -> void:
-		if t.strip_edges() != "":
-			_chat("[color=#ffd76a]%s:[/color] %s" % [GameConfig.player_name, t.strip_edges().replace("[", "(")])
+		NetPlay.node().say(t)
 		say.clear())
 	cbox.add_child(say)
 
-	_back(s, "create", "ออกจากห้อง")
+	var out := _back(s, "create", "ออกจากห้อง")
+	out.pressed.disconnect(out.pressed.get_connections()[0]["callable"])
+	out.pressed.connect(_leave_lobby)
 	_ready_btn = MenuUi.small_button("", "", 150)
 	_ready_btn.custom_minimum_size.y = 52
 	_ready_btn.position = Vector2(W - 382, 480)
 	_ready_btn.add_theme_font_size_override("font_size", 17)
-	_ready_btn.pressed.connect(func() -> void: _set_ready(0, not _ready_flags[0]))
+	_ready_btn.pressed.connect(func() -> void:
+		sfx.play("select")
+		NetPlay.node().set_ready(NetPlay.node().my_seat, not _my_lobby_seat().get("ready", false)))
 	s.add_child(_ready_btn)
 	_start_btn = MenuUi.big_button("swords", "เริ่มเกม", "START GAME", true, 200)
 	_start_btn.position = Vector2(W - 220, 480)
@@ -607,51 +710,64 @@ func _build_lobby() -> Control:
 
 
 func _enter_lobby() -> void:
-	_lobby_gen += 1
 	_countdown = -1.0
-	_lobby_title.text = GameConfig.room_name
-	_ready_flags.clear()
-	_ready_flags.resize(GameConfig.players)
-	_ready_flags.fill(false)
+	_starting = false
 	_chat_log.clear()
-	_chat("[color=#b9a98a]คุณสร้างห้อง \"%s\" (หัวห้อง) · %s[/color]" % [GameConfig.room_name,
-		GameConfig.PRESETS[GameConfig.preset]["name"]])
-	var mine := GameConfig.characters[0] if GameConfig.characters.size() == GameConfig.players else CharacterDB.ids()[0]
-	_pick(mine, true)
-	var gen := _lobby_gen
-	for i in range(1, GameConfig.players):
-		_chat("[color=#b9a98a]%s (บอท) เข้าห้อง[/color]" % GameConfig.names[i])
-		get_tree().create_timer(randf_range(0.8, 2.6)).timeout.connect(func() -> void:
-			if gen == _lobby_gen and _screens["lobby"].visible:
-				_set_ready(i, true))
-	_update_ready()
+	if NetPlay.node().seats.is_empty():
+		NetPlay.node().open_lobby(_my_char())
+	if NetPlay.node().is_guest():
+		_chat("[color=#b9a98a]คุณเข้าห้อง \"%s\" · รอหัวห้องเริ่มเกม[/color]" % GameConfig.room_name)
+	else:
+		_chat("[color=#b9a98a]คุณสร้างห้อง \"%s\" (หัวห้อง) · %s[/color]" % [GameConfig.room_name,
+			GameConfig.PRESETS[GameConfig.preset]["name"]])
+		if NetPlay.node().is_host():
+			_chat("[color=#ffd76a]เลขห้อง %s · ส่งให้เพื่อนกด \"ใส่เลขห้อง\" เพื่อเข้ามาเล่นด้วย[/color]" % NetPlay.node().code)
+			_chat("[color=#b9a98a]ที่ว่างที่ไม่มีคนเข้า บอทจะเล่นแทน[/color]")
+			_chat("[color=#e0a070]หัวห้องเป็นคนเดินเกม: อย่าสลับแท็บหรือปิดหน้านี้ระหว่างเล่น (เกมจะหยุดสำหรับทุกคน)[/color]")
+	_render_lobby()
 
 
-## Seat `i` is (not) ready; everyone ready lets the host start, or starts the countdown.
-func _set_ready(i: int, on: bool) -> void:
-	if _starting or _ready_flags[i] == on:
+## The character you had last (or the first one).
+func _my_char() -> String:
+	if not GameConfig.characters.is_empty() and CharacterDB.ids().has(GameConfig.characters[0]):
+		return GameConfig.characters[0]
+	return CharacterDB.ids()[0]
+
+
+func _my_lobby_seat() -> Dictionary:
+	return NetPlay.node().seats[NetPlay.node().my_seat] if NetPlay.node().my_seat < NetPlay.node().seats.size() else {}
+
+
+## Redraw the lobby from NetPlay.node().seats: the line-up, the player list, Ready and Start.
+func _render_lobby() -> void:
+	if NetPlay.node().seats.is_empty() or not _screens["lobby"].visible:
 		return
-	_ready_flags[i] = on
-	_chat("[color=%s]%s %s[/color]" % ["#7fc97f" if on else "#e0a070", GameConfig.names[i],
-		"พร้อมแล้ว" if on else "ยกเลิกพร้อม"])
-	if i == 0:
-		sfx.play("select")
-	_update_ready()
-
-
-func _all_ready() -> bool:
-	return not _ready_flags.has(false)
-
-
-func _update_ready() -> void:
-	for i in _players_box.get_child_count():
-		var tag: Label = _players_box.get_child(i).get_child(2)
-		tag.text = ("หัวห้อง · " if i == 0 else "บอท · ") + ("พร้อม" if _ready_flags[i] else "รอ...")
-		tag.add_theme_color_override("font_color", Color("7fc97f") if _ready_flags[i] else UiStyle.TEXT_DIM)
-	var me := _ready_flags[0]
-	_ready_btn.text = "ยกเลิกพร้อม" if me else "พร้อม"
-	var all := _all_ready()
-	if GameConfig.start_mode == "auto":
+	_lobby_title.text = GameConfig.room_name + ("   ·   #%s" % NetPlay.node().code if NetPlay.node().online() else "")
+	var me := _my_lobby_seat()
+	if me.is_empty():
+		return
+	_pick_buttons[me["char"]].button_pressed = true
+	var c := CharacterDB.get_character(me["char"])
+	_pick_info.text = "อาวุธ: %s  ·  ท่าโจมตี: %s  ·  ท่าสังหาร: %s" % [c["weapon"], c["attack"], c["finisher"]]
+	for child in _lineup.get_children():
+		child.queue_free()
+	for child in _players_box.get_children():
+		_players_box.remove_child(child)
+		child.queue_free()
+	var n := NetPlay.node().seats.size()
+	var slot_w := minf(180.0, (590.0 - (n - 1) * 10.0) / n)
+	for i in n:
+		_lineup.add_child(_seat_slot(i, slot_w))
+		_players_box.add_child(_player_row(i))
+	_players_head.text = "ผู้เล่น %d คน · บอท %d" % [NetPlay.node().seats.filter(func(s: Dictionary) -> bool: return s["human"]).size(),
+		NetPlay.node().seats.filter(func(s: Dictionary) -> bool: return not s["human"]).size()]
+	_ready_btn.text = "ยกเลิกพร้อม" if me["ready"] else "พร้อม"
+	var all := NetPlay.node().all_ready()
+	_start_btn.visible = not NetPlay.node().is_guest()
+	_ready_btn.position.x = W - 20 - 150 if NetPlay.node().is_guest() else W - 382  # alone at the edge for guests
+	if NetPlay.node().is_guest():
+		pass
+	elif GameConfig.start_mode == "auto":
 		_start_btn.disabled = true
 		if all and _countdown < 0.0:
 			_countdown = AUTO_START_SECONDS
@@ -672,11 +788,15 @@ func _start_label() -> void:
 		sub.text = "รอทุกคนพร้อม" if _countdown < 0.0 else ""
 	else:
 		main.text = "เริ่มเกม"
-		sub.text = "" if _all_ready() else "รอทุกคนกดพร้อม"
+		sub.text = "" if NetPlay.node().all_ready() else "รอทุกคนกดพร้อม"
 	sub.visible = sub.text != ""
 
 
 func _process(delta: float) -> void:
+	_find_refresh -= delta
+	if _screens.has("find") and _screens["find"].visible and _find_refresh <= 0.0:
+		_find_refresh = FIND_REFRESH_SECONDS
+		NetPlay.node().list_rooms()
 	if _countdown < 0.0 or _starting:
 		return
 	_countdown -= delta
@@ -687,50 +807,32 @@ func _process(delta: float) -> void:
 		_start_label()
 
 
-## You chose `id`: the bots are seated again around it, the lineup and player list redrawn.
-## Changing character takes your Ready back.
-func _pick(id: String, quiet := false) -> void:
-	if not quiet:
-		sfx.play("select")
-		if _ready_flags.size() > 0 and _ready_flags[0]:
-			_set_ready(0, false)
-	GameConfig.fill_seats(id)
-	_pick_buttons[id].button_pressed = true
-	var c := CharacterDB.get_character(id)
-	_pick_info.text = "อาวุธ: %s  ·  ท่าโจมตี: %s  ·  ท่าสังหาร: %s" % [c["weapon"], c["attack"], c["finisher"]]
-	for child in _lineup.get_children():
-		child.queue_free()
-	for child in _players_box.get_children():  # gone now: _update_ready() counts the rows
-		_players_box.remove_child(child)
-		child.queue_free()
-	var n := GameConfig.players
-	var slot_w := minf(180.0, (590.0 - (n - 1) * 10.0) / n)
-	for i in n:
-		_lineup.add_child(_seat_slot(i, slot_w))
-		_players_box.add_child(_player_row(i))
-	_players_head.text = "ผู้เล่น (%d/%d)" % [n, n]
-	if _ready_flags.size() == n:
-		_update_ready()
+## You chose `id` (it takes your Ready back).
+func _pick(id: String) -> void:
+	sfx.play("select")
+	NetPlay.node().pick(id)
 
 
 func _seat_slot(i: int, w: float) -> Control:
-	var c := CharacterDB.get_character(GameConfig.characters[i])
+	var s: Dictionary = NetPlay.node().seats[i]
+	var me := i == NetPlay.node().my_seat
+	var c := CharacterDB.get_character(s["char"])
 	var box := VBoxContainer.new()
 	box.custom_minimum_size = Vector2(w, 0)
 	box.add_theme_constant_override("separation", 2)
-	box.add_child(CharacterPreview.new(c["id"], Vector2(w, 200), i == 0))
+	box.add_child(CharacterPreview.new(c["id"], Vector2(w, 200), me))
 	var plate := PanelContainer.new()
-	plate.add_theme_stylebox_override("panel", UiStyle.panel(Color("1d3a5c") if i == 0 else Color("2b1d12"),
-		MenuUi.GOLD if i == 0 else MenuUi.GOLD_DARK, 2 if i == 0 else 1, 6))
+	plate.add_theme_stylebox_override("panel", UiStyle.panel(Color("1d3a5c") if me else Color("2b1d12"),
+		MenuUi.GOLD if me else MenuUi.GOLD_DARK, 2 if me else 1, 6))
 	box.add_child(plate)
 	var inner := VBoxContainer.new()
 	inner.add_theme_constant_override("separation", -2)
 	plate.add_child(inner)
-	var who := MenuUi.label(("★ " if i == 0 else "") + GameConfig.names[i], 15, MenuUi.GOLD if i == 0 else UiStyle.TEXT)
+	var who := MenuUi.label(("★ " if me else "") + s["name"], 15, MenuUi.GOLD if me else UiStyle.TEXT)
 	who.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	who.clip_text = true
 	inner.add_child(who)
-	var what := MenuUi.label(c["name"] + ("" if i == 0 else " · บอท"), 11, UiStyle.TEXT_DIM)
+	var what := MenuUi.label(c["name"] + ("" if s["human"] else " · บอท"), 11, UiStyle.TEXT_DIM)
 	what.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	what.clip_text = true  # 6 seats: narrow plates
 	inner.add_child(what)
@@ -738,15 +840,19 @@ func _seat_slot(i: int, w: float) -> Control:
 
 
 func _player_row(i: int) -> Control:
+	var s: Dictionary = NetPlay.node().seats[i]
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
-	var c := CharacterDB.get_character(GameConfig.characters[i])
+	var c := CharacterDB.get_character(s["char"])
 	row.add_child(Icons.rect(c["icon"], 22))
-	var name := MenuUi.label(GameConfig.names[i], 14, MenuUi.GOLD if i == 0 else UiStyle.TEXT)
+	var name := MenuUi.label(s["name"], 14, MenuUi.GOLD if i == NetPlay.node().my_seat else UiStyle.TEXT)
 	name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name.clip_text = true
 	row.add_child(name)
-	row.add_child(MenuUi.label("", 12))  # ready tag, filled by _update_ready()
+	var role := "หัวห้อง" if i == 0 else ("ผู้เล่น" if s["human"] else "บอท")
+	var tag := MenuUi.label("%s · %s" % [role, "พร้อม" if s["ready"] else "รอ..."], 12)
+	tag.add_theme_color_override("font_color", Color("7fc97f") if s["ready"] else UiStyle.TEXT_DIM)
+	row.add_child(tag)
 	return row
 
 
@@ -754,12 +860,19 @@ func _chat(bbcode: String) -> void:
 	_chat_log.append_text(bbcode + "\n")
 
 
+func _leave_lobby() -> void:
+	var was_guest := NetPlay.node().is_guest()
+	NetPlay.node().leave()
+	NetPlay.node().seats.clear()
+	show_screen("home" if was_guest else "create")
+
+
 func _start_game() -> void:
-	if _starting:
+	if _starting or NetPlay.node().is_guest():
 		return
 	_starting = true
 	sfx.play("confirm")
-	mouse_filter = Control.MOUSE_FILTER_STOP
+	NetPlay.node().start()
 	var fade := ColorRect.new()
 	fade.color = Color(0, 0, 0, 0)
 	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -897,7 +1010,7 @@ func _open_settings() -> void:
 		if GameConfig.names.size() > 0:
 			GameConfig.names[0] = GameConfig.player_name
 		if _screens["lobby"].visible:
-			_pick(GameConfig.characters[0], true)
+			NetPlay.node().rename(GameConfig.player_name)
 		_close_modal()
 		toast("บันทึกการตั้งค่าแล้ว"))
 	row.add_child(save)

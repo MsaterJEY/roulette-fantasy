@@ -32,6 +32,7 @@ const PRESETS := {
 # seats, set in the lobby: character id per seat (0 = you) and display names
 static var characters: Array[String] = []
 static var names: Array[String] = []
+static var humans: Array[bool] = []  # seats played by people (online); empty = you only
 
 # player settings
 static var player_name := "ผู้เล่น"

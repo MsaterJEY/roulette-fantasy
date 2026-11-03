@@ -42,7 +42,7 @@ func _open(screen: String) -> void:
 	elif screen == "howto":
 		menu._open_howto(int(args[1]) - 1 if args.size() > 1 else 0)
 	elif screen == "join":
-		menu.toast("โหมดออนไลน์กำลังพัฒนา · ยังเข้าห้อง #123456 ไม่ได้")
+		menu.toast("กำลังเชื่อมต่อห้อง 123456...")
 	elif screen == "create" and "custom" in args:
 		if "nominigame" in args:  # show the rules and minigame sections instead of the room one
 			menu._open_sections["rules"] = true
@@ -53,4 +53,4 @@ func _open(screen: String) -> void:
 		else:
 			menu._choose_preset("custom")
 	elif screen == "lobby" and "ready" in args:
-		menu._set_ready(0, true)
+		NetPlay.node().set_ready(0, true)

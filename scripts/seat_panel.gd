@@ -54,7 +54,7 @@ func setup(p: PlayerData) -> void:
 	var top := HBoxContainer.new()
 	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(top)
-	if not p.is_bot:
+	if p.seat == 0 and not p.is_bot:
 		top.add_child(Icons.rect("star", 14))  # marks your own card
 	_name_label = Label.new()
 	_name_label.add_theme_font_size_override("font_size", 13)
@@ -107,7 +107,7 @@ func _gui_input(event: InputEvent) -> void:
 func refresh() -> void:
 	if player == null:
 		return
-	var mine := not player.is_bot
+	var mine := player.seat == 0 and not player.is_bot  # seat 0 is always you
 	var idle_border := MINE_BORDER if mine else UiStyle.BRASS
 	var border := TARGET if _targetable else (UiStyle.ACTIVE if _active else idle_border)
 	var bg := (MINE_BG if mine else Color(UiStyle.WOOD_DARK, 0.92)) if player.alive else Color(0.1, 0.08, 0.07, 0.85)
@@ -124,7 +124,7 @@ func refresh() -> void:
 	_cards_label.text = str(player.hand.size())
 	_shards_label.text = str(player.shards)
 	tooltip_text = "%s · เงิน %d · เศษแหวน %d · การ์ด %d ใบ" % [player.display_name, player.gold,
-		player.shards, player.hand.size()] if player.is_bot else ""
+		player.shards, player.hand.size()] if not mine else ""
 	_fill_status_bar()
 	# the player whose turn it is stands out; everyone else is slightly dimmed
 	if not player.alive:

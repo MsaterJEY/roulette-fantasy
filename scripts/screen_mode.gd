@@ -6,11 +6,26 @@ extends RefCounted
 
 
 static func is_full() -> bool:
+	if OS.has_feature("web"):
+		return JavaScriptBridge.eval("!!(document.fullscreenElement || document.webkitFullscreenElement)", true)
 	var mode := DisplayServer.window_get_mode()
 	return mode == DisplayServer.WINDOW_MODE_FULLSCREEN or mode == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN
 
 
 static func toggle() -> void:
+	if OS.has_feature("web"):
+		# the whole page, not just the game's canvas (Godot's own full screen): a phone's
+		# keyboard types into a hidden text box on the page, which must stay on screen too
+		JavaScriptBridge.eval("""
+			(function () {
+				var d = document, e = d.documentElement;
+				if (d.fullscreenElement || d.webkitFullscreenElement) {
+					(d.exitFullscreen || d.webkitExitFullscreen).call(d);
+				} else {
+					(e.requestFullscreen || e.webkitRequestFullscreen).call(e);
+				}
+			})();""", true)
+		return
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if is_full() else DisplayServer.WINDOW_MODE_FULLSCREEN)
 
 

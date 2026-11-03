@@ -19,7 +19,7 @@ extends RefCounted
 ## Seconds from the start of an attack to the hit, and how long a finisher runs after it.
 const IMPACT := {"blood": 0.5, "arcane": 0.55, "thorn": 0.45, "flame": 0.55}
 ## (Each covers its whole animation: the game waits this long before play goes on.)
-const FINISH := {"blood": 2.8, "arcane": 2.6, "thorn": 2.9, "flame": 4.6}
+const FINISH := {"blood": 2.8, "arcane": 2.6, "thorn": 5.2, "flame": 4.6}
 ## Soul Reap timing (x k): the slash flurry; short wounds while the body shudders; the
 ## wounds tear open; the burst a moment later.
 const SLASHES_SECONDS := 0.55
@@ -484,11 +484,16 @@ func _body_fire(at: Vector3, full: float, fade: float) -> void:
 ##   6. the head drops onto the table, lands and slides a little way, turning;
 ##   7. SWAY: the headless body loses its balance;
 ##   8. TOPPLE: it falls heavily forward onto the table and lies still.
-const ARROW_DROP_AT := 0.75
-const ARROW_FALL := 0.24
-const PIERCE := 0.2
-const SWAY := 0.55
-const TOPPLE := 0.38
+## Paced slowly enough to follow each beat (it was over in a blink).
+const ARROW_DROP_AT := 1.0
+const ARROW_FALL := 0.55
+const PIERCE := 0.5
+const IMPALED := 0.3  # a held moment, the arrow through the head, before it comes off
+const HEAD_FALL := 0.7
+const HEAD_SLIDE := 0.55
+const ARROW_DOWN := 0.55
+const SWAY := 1.0
+const TOPPLE := 0.6
 
 
 func _final_arrow(t: int, color: Color, k: float) -> void:
@@ -505,7 +510,7 @@ func _final_arrow(t: int, color: Color, k: float) -> void:
 	var arrow_land := Vector3(head.x, on_table + 0.04, head.z) + inward * 0.6 + side * 0.35
 	var head_land := Vector3(head.x, on_table + 0.22, head.z) + inward * 0.38 - side * 0.42
 	var strike := ARROW_DROP_AT + ARROW_FALL
-	var off := strike + PIERCE  # the head comes off
+	var off := strike + PIERCE + IMPALED  # the head comes off
 	var giant := _magic_arrow(color, 2.2)
 	giant.set_meta("leftover", true)  # cleared with your seat (TavernView.watch_your_death)
 	var length := 0.29 * 2.2  # from the arrow's middle to its point
@@ -526,12 +531,12 @@ func _final_arrow(t: int, color: Color, k: float) -> void:
 	_after(strike * k, func() -> void:
 		_burst(Vector3(head.x, head_top, head.z), color, 1.4, 0.3 * k)
 		_particles(Vector3(head.x, head_top, head.z), Color("d8ffb0"), color, 40, 2.0, 0.5 * k, 3.0)
-		tv.shake(0.06, 0.35 * k))
+		tv.shake(0.06, 0.45 * k))
 	# 3. drives on down through the head to the neck, crackling
 	_after(strike * k, func() -> void:
 		giant.create_tween().tween_property(giant, "position:y", neck + length, PIERCE * k).set_ease(Tween.EASE_OUT)
-		_particles(head, Color("b8ff8a"), color, 50, 0.9, PIERCE * 2.0 * k, -0.5, 0.025)
-		victim.arrow_jolt(PIERCE * k))
+		_particles(head, Color("b8ff8a"), color, 70, 0.9, (PIERCE + IMPALED) * 2.0 * k, -0.5, 0.025)
+		victim.arrow_jolt((PIERCE + IMPALED) * k))
 	# 4. the head comes off; 6. it drops onto the table and slides
 	_after(off * k, func() -> void:
 		_particles(Vector3(head.x, neck, head.z), Color("c0102a"), Color("4a0008"), 40, 1.2, 0.6 * k, 4.0)
@@ -551,12 +556,12 @@ func _final_arrow(t: int, color: Color, k: float) -> void:
 		var bounce := func(s: float) -> void:
 			giant.position = arrow_land + Vector3(0, 0.06 * sin(PI * s), 0) + side * 0.05 * s
 		var at := giant.create_tween()
-		at.tween_method(fall, 0.0, 1.0, 0.3 * k).set_ease(Tween.EASE_IN)
-		at.tween_method(bounce, 0.0, 1.0, 0.18 * k)
+		at.tween_method(fall, 0.0, 1.0, ARROW_DOWN * k).set_ease(Tween.EASE_IN)
+		at.tween_method(bounce, 0.0, 1.0, 0.3 * k)
 		at.tween_callback(func() -> void:
 			_particles(arrow_land, Color("c8a070"), Color("6b4426"), 10, 0.5, 0.4 * k, 4.0)))  # splinters
 	# 7-8. the headless body sways, then falls heavily onto the table
-	_after((off + 0.15) * k, func() -> void:
+	_after((off + 0.35) * k, func() -> void:
 		var chest := victim.topple(SWAY * k, TOPPLE * k)
 		_after((SWAY + TOPPLE) * k, func() -> void:
 			_particles(chest, Color("a08a6a"), Color("4a3a2a"), 24, 0.6, 0.6 * k, 1.5)  # dust
@@ -588,11 +593,11 @@ func _drop_head(head: Node3D, land: Vector3, inward: Vector3, k: float) -> void:
 		head.rotation = spin.lerp(rest, s)
 	var slide_to := land + inward * 0.06
 	var ht := head.create_tween()
-	ht.tween_method(arc, 0.0, 1.0, 0.42 * k)
+	ht.tween_method(arc, 0.0, 1.0, HEAD_FALL * k)
 	ht.tween_callback(func() -> void:
 		_particles(land, Color("c0102a"), Color("4a0008"), 12, 0.4, 0.4 * k, 4.0))
-	ht.tween_property(head, "position", slide_to, 0.35 * k).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	ht.parallel().tween_property(head, "rotation:y", rest.y + 0.5, 0.35 * k).set_ease(Tween.EASE_OUT)
+	ht.tween_property(head, "position", slide_to, HEAD_SLIDE * k).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	ht.parallel().tween_property(head, "rotation:y", rest.y + 0.5, HEAD_SLIDE * k).set_ease(Tween.EASE_OUT)
 
 
 ## Soul Reap: the shattered body as chunks in its colours, flung out and left lying on the

@@ -46,4 +46,4 @@ func _process(_delta: float) -> bool:
 		g._pause = 0.0
 		g.state_changed.emit()
 		g.play_card(a, 0, target)
-	return frames > (330 if "you" in args else 170)  # yours: the camera also glides back
+	return frames > (400 if "you" in args else 240)  # yours: the camera also glides back

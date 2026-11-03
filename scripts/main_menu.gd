@@ -21,7 +21,6 @@ var _badge_name: Label
 
 # Create Room
 var _room_name: LineEdit
-var _password: LineEdit
 var _summary: Label
 var _sections: VBoxContainer
 var _open_sections: Dictionary = {}  # section key -> open
@@ -128,23 +127,23 @@ func _build_home() -> Control:
 	var lbox := VBoxContainer.new()
 	logo_plate.add_child(lbox)
 	lbox.add_child(MenuUi.logo(44))
-	var tag := MenuUi.label("ทอยเต๋า · ใช้การ์ด · ตีหัวเพื่อนร่วมโต๊ะ", 12, UiStyle.TEXT_DIM)
-	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbox.add_child(tag)
 
 	var col := VBoxContainer.new()
 	col.position = Vector2(83, 200)
 	col.add_theme_constant_override("separation", 12)
 	s.add_child(col)
-	var create := MenuUi.big_button("swords", "สร้างห้อง", "CREATE ROOM · เล่นกับบอท", true)
+	# the buttons sit just under the logo, whatever height the font gives it (taller on the web)
+	logo_plate.resized.connect(func() -> void:
+		col.position.y = maxf(190.0, logo_plate.position.y + logo_plate.size.y + 20.0))
+	var create := MenuUi.big_button("swords", "สร้างห้อง", "", true)
 	create.pressed.connect(func() -> void:
 		sfx.play("select")
 		show_screen("create"))
 	col.add_child(create)
-	var find := MenuUi.big_button("cards", "ค้นหาห้อง", "FIND ROOM")
+	var find := MenuUi.big_button("cards", "ค้นหาห้อง", "")
 	find.pressed.connect(show_screen.bind("find"))
 	col.add_child(find)
-	var join := MenuUi.big_button("dice", "ใส่เลขห้อง", "JOIN BY CODE")
+	var join := MenuUi.big_button("dice", "ใส่เลขห้อง", "")
 	join.pressed.connect(show_screen.bind("join"))
 	col.add_child(join)
 
@@ -162,9 +161,10 @@ func _build_home() -> Control:
 	quit.pressed.connect(func() -> void:  # through the sound player, so it quits cleanly
 		get_tree().root.propagate_notification(NOTIFICATION_WM_CLOSE_REQUEST))
 	row.add_child(quit)
+	quit.visible = not OS.has_feature("web")  # a browser tab can't be closed by the page
 
-	var ver := MenuUi.label("โหมดออฟไลน์ · คุณกับบอท  ·  v0.3", 11, UiStyle.TEXT_DIM)
-	ver.position = Vector2(W - 210, 516)
+	var ver := MenuUi.label("v0.3", 11, UiStyle.TEXT_DIM)
+	ver.position = Vector2(W - 50, 516)
 	s.add_child(ver)
 	return s
 
@@ -199,7 +199,7 @@ func _build_find() -> Control:
 		var l := MenuUi.label(line[0], line[1], line[2])
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		empty.add_child(l)
-	var go := MenuUi.big_button("swords", "สร้างห้องแทน", "CREATE ROOM", true, 210)
+	var go := MenuUi.big_button("swords", "สร้างห้องแทน", "", true, 210)
 	go.position = Vector2(W - 230, 470)
 	go.pressed.connect(show_screen.bind("create"))
 	s.add_child(go)
@@ -238,7 +238,7 @@ func _build_join() -> Control:
 			code.text = digits
 			code.caret_column = digits.length())
 	box.add_child(code)
-	var join := MenuUi.big_button("", "เข้าร่วมห้อง", "JOIN", true, 200)
+	var join := MenuUi.big_button("", "เข้าร่วมห้อง", "", true, 200)
 	join.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	join.pressed.connect(func() -> void:
 		if code.text.length() < 6:
@@ -256,7 +256,7 @@ func _build_join() -> Control:
 
 # ---------- create room ----------
 # Presets on top (most players pick one and go), then the settings in folding sections, like
-# the user's design: room, match rules, balance (later), players and rights. The summary and
+# the user's design: room, match rules, minigame. The summary and
 # the Create button on the right.
 
 func _build_create() -> Control:
@@ -319,7 +319,7 @@ func _build_create() -> Control:
 	_summary.add_theme_constant_override("line_spacing", 2)
 	_summary.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	sbox.add_child(_summary)
-	var go := MenuUi.big_button("swords", "สร้างห้อง", "CREATE", true, 258)
+	var go := MenuUi.big_button("swords", "สร้างห้อง", "", true, 258)
 	go.pressed.connect(_create_room)
 	sbox.add_child(go)
 	_back(s)
@@ -331,7 +331,7 @@ func _build_create() -> Control:
 func _fill_sections() -> void:
 	for c in _sections.get_children():
 		c.queue_free()
-	var room := _section("room", "cards", "ตั้งค่าห้อง", "ชื่อห้อง · จำนวนผู้เล่น · ประเภทห้อง · รหัสผ่าน")
+	var room := _section("room", "cards", "ตั้งค่าห้อง")
 	_room_name = LineEdit.new()
 	_room_name.text = GameConfig.room_name
 	_room_name.max_length = 24
@@ -343,44 +343,8 @@ func _fill_sections() -> void:
 	_setting(room, "ชื่อห้อง", _room_name)
 	_setting(room, "จำนวนผู้เล่น", _choices([["2 คน", 2], ["3 คน", 3], ["4 คน", 4], ["5 คน", 5], ["6 คน", 6]], GameConfig.players,
 		func(v: int) -> void: GameConfig.players = v))
-	var pass_row := HBoxContainer.new()
-	pass_row.add_theme_constant_override("separation", 8)
-	_setting(room, "ประเภทห้อง", _choices([["สาธารณะ", 0], ["ใส่รหัสผ่าน", 1]], 1 if GameConfig.room_type == "password" else 0,
-		func(v: int) -> void:
-			GameConfig.room_type = "password" if v == 1 else "public"
-			if v == 1 and GameConfig.room_password.length() != 4:
-				GameConfig.new_room_password()
-				_password.text = GameConfig.room_password
-			pass_row.get_parent().visible = v == 1))
-	_password = LineEdit.new()
-	_password.text = GameConfig.room_password
-	_password.max_length = 4
-	_password.placeholder_text = "0000"
-	_password.custom_minimum_size = Vector2(110, 34)
-	_password.alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_password.add_theme_font_size_override("font_size", 18)
-	_password.add_theme_stylebox_override("normal", UiStyle.panel(Color("120c08"), MenuUi.GOLD_DARK, 1, 6))
-	_password.text_changed.connect(func(t: String) -> void:
-		var digits := ""
-		for ch in t:
-			if ch >= "0" and ch <= "9":
-				digits += ch
-		if digits != t:
-			_password.text = digits
-			_password.caret_column = digits.length()
-		GameConfig.room_password = digits
-		_update_summary())
-	pass_row.add_child(_password)
-	var reroll := MenuUi.small_button("  สุ่มใหม่  ")
-	reroll.pressed.connect(func() -> void:
-		GameConfig.new_room_password()
-		_password.text = GameConfig.room_password
-		_update_summary())
-	pass_row.add_child(reroll)
-	_setting(room, "รหัสผ่าน (4 หลัก)", pass_row).visible = GameConfig.room_type == "password"
-	room.add_child(_note("ตอนนี้เล่นกับบอท · ประเภทห้องและรหัสผ่านจะใช้จริงเมื่อเปิดโหมดออนไลน์"))
 
-	var rules := _section("rules", "swords", "กติกาการแข่งขัน", "เวลาเทิร์น · เงื่อนไขชนะ · การเริ่มเกม")
+	var rules := _section("rules", "swords", "กติกา")
 	_setting(rules, "เวลาต่อเทิร์น", _choices([["15 วิ", 15], ["20 วิ", 20], ["30 วิ", 30], ["45 วิ", 45]],
 		GameConfig.turn_seconds, func(v: int) -> void: GameConfig.turn_seconds = v))
 	var rings := _choices([["3 วง", 3], ["5 วง", 5], ["7 วง", 7], ["ไม่ใช้แหวน", 0]], GameConfig.rings_to_win,
@@ -392,28 +356,18 @@ func _fill_sections() -> void:
 			if b.button_pressed:  # still show which one is on
 				b.add_theme_stylebox_override("disabled", UiStyle.panel(Color("5a4220"), MenuUi.GOLD_DARK, 2, 8))
 	_setting(rules, "ชนะเมื่อได้แหวน", rings)
-	_setting(rules, "การเริ่มเกม", _choices([["หัวห้องกดเริ่ม", 0], ["เริ่มเองเมื่อพร้อม", 1]],
-		1 if GameConfig.start_mode == "auto" else 0, func(v: int) -> void: GameConfig.start_mode = "auto" if v == 1 else "host"))
-	rules.add_child(_note("รอดเป็นคนสุดท้ายชนะเสมอ · \"ไม่ใช้แหวน\" = ชนะได้ด้วยการจัดการผู้เล่นเท่านั้น\nทุก %d รอบ เลือดสูงสุดและการ์ดในมือสูงสุดของทุกคนลดลง 1 (เกมไม่ยืดเยื้อ)" % GameController.SHRINK_ROUNDS))
+	rules.add_child(_note("คนสุดท้ายที่รอดชนะเสมอ · ทุก %d รอบ เลือดและการ์ดในมือสูงสุด -1" % GameController.SHRINK_ROUNDS))
 
-	var mini := _section("minigame", "dice", "มินิเกม", "เปิด/ปิดมินิเกม · ทายอันดับทุก 2 รอบ")
+	var mini := _section("minigame", "dice", "มินิเกม")
 	_setting(mini, "มินิเกม", _choices([["เปิด", 1], ["ปิด", 0]], 1 if GameConfig.minigames else 0,
 		func(v: int) -> void: _set_minigames(v == 1)))
-	mini.add_child(_note("มินิเกมให้เศษแหวน (ทางเดียวที่ได้แหวน) และเงินตามอันดับ
-ปิดมินิเกม = ไม่ใช้แหวนไปด้วย ชนะได้ด้วยการจัดการผู้เล่นเท่านั้น"))
+	mini.add_child(_note("มินิเกมเป็นทางเดียวที่ได้เศษแหวน · ปิด = ไม่ใช้แหวน"))
 
-	var balance := _section("balance", "defense", "สมดุลและความยาก", "HP เริ่มต้น · ไอเทม · เหตุการณ์สุ่ม", true)
-	balance.add_child(_note("ระยะถัดไป: ตั้ง HP เริ่มต้น เปิด/ปิดไอเทม และเหตุการณ์สุ่มระหว่างเกม\nตอนนี้ใช้ค่ามาตรฐาน: HP 4 · ไอเทมครบทุกใบ · ไม่มีเหตุการณ์สุ่ม"))
-
-	var who := _section("players", "star", "ผู้เล่นและสิทธิ์", "เลือกตัวละคร · ผู้ชม · การเข้าระหว่างเกม · AFK")
-	who.add_child(_note("เลือกตัวละคร: เลือกซ้ำกับคนอื่นได้ (บอทจะกระจายไปตัวอื่นก่อน)"))
-	who.add_child(_note("ระยะถัดไป: ผู้ชม · การเข้าระหว่างเกม · ให้บอทเล่นแทนเมื่อ AFK"))
 	_update_summary()
 
 
-## A folding section: a header (icon, title, the settings it holds, ▼) that opens a body.
-## `later`: its settings come in a later phase (shown, marked).
-func _section(key: String, icon: String, title: String, subtitle: String, later := false) -> VBoxContainer:
+## A folding section: a header (icon, title, ▼) that opens a body.
+func _section(key: String, icon: String, title: String) -> VBoxContainer:
 	var head := Button.new()
 	head.flat = true
 	head.custom_minimum_size = Vector2(0, 54)
@@ -429,8 +383,6 @@ func _section(key: String, icon: String, title: String, subtitle: String, later 
 	head.add_child(row)
 	var ic := Icons.rect(icon, 24)
 	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	if later:
-		ic.modulate = Color(1, 1, 1, 0.5)
 	row.add_child(ic)
 	var texts := VBoxContainer.new()
 	texts.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -438,12 +390,7 @@ func _section(key: String, icon: String, title: String, subtitle: String, later 
 	texts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	texts.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(texts)
-	texts.add_child(MenuUi.label(title, 16, UiStyle.TEXT_DIM if later else UiStyle.TEXT))
-	texts.add_child(MenuUi.label(subtitle, 11, UiStyle.TEXT_DIM))
-	if later:
-		var tag := MenuUi.label("ระยะถัดไป", 11, MenuUi.GOLD_DARK.lightened(0.2))
-		tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		row.add_child(tag)
+	texts.add_child(MenuUi.label(title, 16, UiStyle.TEXT))
 	var arrow := MenuUi.label("", 13, MenuUi.GOLD)
 	arrow.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(arrow)
@@ -542,28 +489,18 @@ func _mark_custom() -> void:
 func _update_summary() -> void:
 	if _summary == null:
 		return
-	var name := GameConfig.room_name if GameConfig.room_name != "" else "ห้องของฉัน"
 	_summary.text = "\n".join([
 		"แบบห้อง: %s" % GameConfig.PRESETS[GameConfig.preset]["name"],
-		"ชื่อห้อง: %s" % name,
 		"ผู้เล่น: %d คน (คุณ + บอท %d)" % [GameConfig.players, GameConfig.players - 1],
-		"ประเภท: %s" % ("ใส่รหัสผ่าน (%s)" % GameConfig.room_password if GameConfig.room_type == "password" else "สาธารณะ"),
 		"เวลาต่อเทิร์น: %d วินาที" % GameConfig.turn_seconds,
 		"ชนะเมื่อ: แหวน %d วง หรือรอดคนสุดท้าย" % GameConfig.rings_to_win if GameConfig.rings_to_win > 0
 			else "ชนะเมื่อ: รอดเป็นคนสุดท้าย (ไม่ใช้แหวน)",
 		"มินิเกม: %s" % ("เปิด · ทุก 2 รอบ" if GameConfig.minigames else "ปิด"),
-		"ทุก %d รอบ: เลือด/การ์ดในมือสูงสุด -1" % GameController.SHRINK_ROUNDS,
-		"เริ่มเกม: %s" % ("เริ่มเองเมื่อทุกคนพร้อม" if GameConfig.start_mode == "auto" else "หัวห้องกดเริ่ม"),
-		"ตัวละคร: เลือกซ้ำกันได้",
-		"HP เริ่มต้น 4 · ไอเทมครบ"])
+		"ทุก %d รอบ: เลือด/การ์ดในมือสูงสุด -1" % GameController.SHRINK_ROUNDS])
+
 
 
 func _create_room() -> void:
-	if GameConfig.room_type == "password" and GameConfig.room_password.length() != 4:
-		_open_sections["room"] = true
-		_fill_sections()
-		toast("รหัสผ่านต้องมี 4 หลัก")
-		return
 	sfx.play("confirm")
 	if GameConfig.room_name == "":
 		GameConfig.room_name = "ห้องของฉัน"
@@ -668,8 +605,7 @@ func _build_lobby() -> Control:
 func _enter_lobby() -> void:
 	_lobby_gen += 1
 	_countdown = -1.0
-	_lobby_title.text = "%s   ·   ห้อง #%s%s" % [GameConfig.room_name, GameConfig.room_code,
-		"   ·   รหัสผ่าน %s" % GameConfig.room_password if GameConfig.room_type == "password" else ""]
+	_lobby_title.text = GameConfig.room_name
 	_ready_flags.clear()
 	_ready_flags.resize(GameConfig.players)
 	_ready_flags.fill(false)
@@ -729,10 +665,11 @@ func _start_label() -> void:
 	var sub: Label = _start_btn.get_child(0).get_child(-1).get_child(1)
 	if GameConfig.start_mode == "auto":
 		main.text = "เริ่มใน %d" % ceili(_countdown) if _countdown >= 0.0 else "เริ่มอัตโนมัติ"
-		sub.text = "AUTO START · รอทุกคนพร้อม" if _countdown < 0.0 else "AUTO START"
+		sub.text = "รอทุกคนพร้อม" if _countdown < 0.0 else ""
 	else:
 		main.text = "เริ่มเกม"
-		sub.text = "START GAME" if _all_ready() else "รอทุกคนกดพร้อม"
+		sub.text = "" if _all_ready() else "รอทุกคนกดพร้อม"
+	sub.visible = sub.text != ""
 
 
 func _process(delta: float) -> void:
@@ -860,7 +797,6 @@ func _build_badge() -> void:
 	_badge_name = MenuUi.label(GameConfig.player_name, 15, MenuUi.GOLD)
 	_badge_name.clip_text = true
 	texts.add_child(_badge_name)
-	texts.add_child(MenuUi.label("ออฟไลน์", 11, UiStyle.TEXT_DIM))
 
 
 func _build_toast() -> void:

@@ -470,13 +470,13 @@ func _flame_jet(from: Vector3, to: Vector3, duration: float) -> void:
 	splash.position = to
 	tv.viewport.add_child(splash)
 	splash.emitting = true
-	_after(duration, func() -> void:
-		jet.emitting = false
-		splash.emitting = false)
-	tv.get_tree().create_timer(duration + 0.6).timeout.connect(func() -> void:
-		for n: Node in [jet, splash]:
-			if is_instance_valid(n):  # gone already if the table closed meanwhile
-				n.queue_free())
+	# connected to the nodes themselves, not a lambda holding them: either may be gone first
+	# (on you, the death shot clears everything at your seat), and its connection goes with it
+	var stop := tv.get_tree().create_timer(duration)
+	var gone := tv.get_tree().create_timer(duration + 0.6)
+	for n: CPUParticles3D in [jet, splash]:
+		stop.timeout.connect(n.set.bind("emitting", false))
+		gone.timeout.connect(n.queue_free)
 
 
 ## The target on fire: flames rising all over its body at full strength for `full` seconds,

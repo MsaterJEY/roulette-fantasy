@@ -1,7 +1,7 @@
 extends SceneTree
 ## Screenshot helper: opens the table, puts you in Preparation with the shop open.
 ## Run with --write-movie to capture frames. Add `-- noshop` to leave the shop closed,
-## `-- toast` to show the "your turn" text instead of the shop, `-- roll` to throw the dice,
+## `-- toast` to show the "your turn" text instead of the shop, `-- hint` for why a clicked card can't be played, `-- roll` to throw the dice,
 ## `-- fx` for a full hand (one card lifted) plus a blocked and a landed attack.
 ## `-- throw` for thrown cards and a hurt face, `-- target` for picking an attack target (bots glow, history open), `-- self` / `-- selfblind` for effects on you (hit / block while blind), `-- replace` for buying with a full hand (pick a card to swap out), `-- minigame` for the minigame on your turn (a few answers in), `-- result` for the end screen, `-- defend` for the defense prompt when a bot attacks you, `-- dicetip` for the dice scoring tip.
 
@@ -126,6 +126,8 @@ func _process(_delta: float) -> bool:
 			table.dice_tip.visible = true
 		elif "toast" in args:
 			g.turn_started.emit(0)
+		elif "hint" in args:  # a card clicked that can't be played yet
+			table._flash_hint("การ์ดนี้ใช้ได้ในช่วง Combat (ต่อสู้)")
 		elif not "noshop" in args:
 			table.shop_panel.visible = true
 			table._fill_shop()

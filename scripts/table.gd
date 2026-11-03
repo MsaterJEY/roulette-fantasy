@@ -27,6 +27,8 @@ var tavern: TavernView
 var status_fx: Vignette
 var hit_fx: Vignette
 var hand_lock: Control  # "no items" badge over your hand
+var hand_hint: Label  # why the card you clicked can't be played, over your hand for a moment
+var _hint_tween: Tween
 var self_target_button: Button  # "use on yourself" while aiming a card that may target you
 var round_label: Label
 var phase_label: Label
@@ -721,6 +723,18 @@ func _build_hand() -> void:
 	hand_lock.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hand_lock.z_index = 80
 	hand_lock.visible = false
+	hand_hint = Label.new()
+	hand_hint.position = Vector2(HAND_BOX.get_center().x - 300, HAND_BOX.position.y - 40)
+	hand_hint.size = Vector2(600, 30)
+	hand_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hand_hint.add_theme_font_size_override("font_size", 16)
+	hand_hint.add_theme_color_override("font_color", Color("ff8a7a"))
+	hand_hint.add_theme_color_override("font_outline_color", Color.BLACK)
+	hand_hint.add_theme_constant_override("outline_size", 6)
+	hand_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hand_hint.z_index = 85
+	hand_hint.modulate.a = 0.0
+	add_child(hand_hint)
 	hand_lock.add_child(Icons.rect("no_items", 24))
 	var lock_text := Label.new()
 	lock_text.text = "ห้ามใช้ไอเทม"
@@ -1044,6 +1058,7 @@ func _on_card_pressed(hand_index: int) -> void:
 	var reason := game.can_play(me, card)
 	if reason != "":
 		add_log("[color=#ff6b6b]%s[/color]" % reason)
+		_flash_hint(reason)
 		return
 	if card["target"] in ["enemy", "any"]:
 		_targeting = {"index": hand_index, "card": card}
@@ -1056,6 +1071,17 @@ func _on_card_pressed(hand_index: int) -> void:
 		_fill_hand()
 	else:
 		game.play_card(me, hand_index)
+
+
+## `text` over your hand for a moment (the history may be folded away).
+func _flash_hint(text: String) -> void:
+	hand_hint.text = text
+	if _hint_tween:
+		_hint_tween.kill()
+	hand_hint.modulate.a = 1.0
+	_hint_tween = create_tween()
+	_hint_tween.tween_interval(1.8)
+	_hint_tween.tween_property(hand_hint, "modulate:a", 0.0, 0.4)
 
 
 func _on_seat_clicked(seat: int) -> void:

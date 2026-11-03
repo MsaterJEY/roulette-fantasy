@@ -187,7 +187,7 @@ func _build_home() -> Control:
 	quit.visible = not OS.has_feature("web")  # a browser tab can't be closed by the page
 
 	var ver := MenuUi.label("v0.3", 11, UiStyle.TEXT_DIM)
-	ver.position = Vector2(W - 20, 512)  # right edge in line with the badge (below)
+	ver.position = Vector2(W - 20, 512)  # right edge in line with the full screen button (above)
 	ver.resized.connect(func() -> void: ver.position.x = W - 20 - ver.size.x)
 	s.add_child(ver)
 	return s
@@ -886,7 +886,7 @@ func _start_game() -> void:
 
 func _build_badge() -> void:
 	var b := Button.new()
-	b.position = Vector2(W - 210, 12)
+	b.position = Vector2(W - 20 - 46 - 8 - 190, 12)  # left of the full screen button
 	b.custom_minimum_size = Vector2(190, 46)
 	b.add_theme_stylebox_override("normal", MenuUi.panel_style(MenuUi.GOLD_DARK, 2, MenuUi.PANEL))
 	b.add_theme_stylebox_override("hover", MenuUi.panel_style(MenuUi.GOLD, 2, MenuUi.PANEL))
@@ -895,8 +895,8 @@ func _build_badge() -> void:
 	b.tooltip_text = "ตั้งค่าชื่อผู้เล่น"
 	b.pressed.connect(_open_settings)
 	add_child(b)
-	var full := ScreenMode.button(46)  # full screen, beside the badge and as tall
-	full.position = Vector2(W - 210 - 8 - 46, 12)
+	var full := ScreenMode.button(46)  # full screen, in the corner beside the badge and as tall
+	full.position = Vector2(W - 20 - 46, 12)
 	full.add_theme_stylebox_override("normal", MenuUi.panel_style(MenuUi.GOLD_DARK, 2, MenuUi.PANEL))
 	full.add_theme_stylebox_override("hover", MenuUi.panel_style(MenuUi.GOLD, 2, MenuUi.PANEL))
 	full.add_theme_stylebox_override("pressed", MenuUi.panel_style(MenuUi.GOLD, 2, MenuUi.PANEL))

@@ -16,9 +16,17 @@ const SLOT_STEP := 150.0
 ## 5-6 players: narrower cards (no portrait) so the bar still fits the screen.
 const SLOT_SIZE_COMPACT := Vector2(128, 58)
 const SLOT_STEP_COMPACT := 132.0
+## Once play starts: the player on turn first with a big card, the rest slim, in the order
+## they come (the bar turns round each turn).
+const TURN_BIG := Vector2(176, 62)
+const TURN_SLIM := Vector2(138, 40)
+const TURN_BIG_COMPACT := Vector2(156, 62)
+const TURN_SLIM_COMPACT := Vector2(120, 40)
+const TURN_GAP := 6.0
 const BAR_CENTRE := 480.0  # the middle of the screen
 const MARGIN := 16.0  # the gap at the left and right edges of the screen
 var _seat_count := 4
+var _on_turn_seat := -1  # whose card is big at the front of the bar (-1: the opening, all alike)
 
 var game: GameController
 var seats: Array[SeatPanel] = []
@@ -204,17 +212,43 @@ func _slot_rect(i: int) -> Rect2:
 	return Rect2(Vector2(left + i * step, 10), size)
 
 
-## Put every player card in its top-bar place: turn order once it is known.
+## The `d`-th place once play starts: 0 is the player on turn, then whoever plays next.
+func _turn_rect(d: int) -> Rect2:
+	var big := TURN_BIG_COMPACT if SeatPanel.compact else TURN_BIG
+	var slim := TURN_SLIM_COMPACT if SeatPanel.compact else TURN_SLIM
+	var left := BAR_CENTRE - (big.x + (_seat_count - 1) * (slim.x + TURN_GAP)) / 2.0
+	if d == 0:
+		return Rect2(Vector2(left, 10), big)
+	var y := 10 + (big.y - slim.y) / 2.0  # level with the big card's middle
+	return Rect2(Vector2(left + big.x + TURN_GAP + (d - 1) * (slim.x + TURN_GAP), y), slim)
+
+
+## Put every player card in its top-bar place: seat order, then turn order once it is known;
+## once play starts, the player on turn first (big) and the rest as they come.
 func _place_cards(animated: bool) -> void:
+	var playing := not game.in_opening() and not game.order.is_empty()
+	_on_turn_seat = game.order[game.turn_index] if playing else -1
 	for seat in seats.size():
 		var slot := game.order.find(seat)
-		var to: Vector2 = _slot_rect(slot).position
+		var to := _turn_rect(posmod(slot - game.turn_index, _seat_count)) if playing else _slot_rect(slot)
+		var card := seats[seat]
+		var shape := ("big" if seat == _on_turn_seat else "slim") if playing else "normal"
+		if shape != "big":
+			card.set_shape(shape)  # shrinks at once; a card growing gets its look once it's grown
 		if animated:
-			var t := seats[seat].create_tween()
-			t.tween_property(seats[seat], "position", to, 0.45).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
-			_order_badges[seat].create_tween().tween_property(_order_badges[seat], "position:x", to.x + 20, 0.45)
+			var t := card.create_tween().set_parallel()
+			t.tween_property(card, "position", to.position, 0.45).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+			t.tween_property(card, "custom_minimum_size", to.size, 0.45).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+			t.tween_property(card, "size", to.size, 0.45).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+			if shape == "big":
+				t.chain().tween_callback(card.set_shape.bind(shape))
+			if seat < _order_badges.size():  # the opening roll-off's results under the cards
+				_order_badges[seat].create_tween().tween_property(_order_badges[seat], "position:x", to.position.x + 20, 0.45)
 		else:
-			seats[seat].position = to
+			card.set_shape(shape)
+			card.position = to.position
+			card.custom_minimum_size = to.size
+			card.size = to.size
 
 
 func _order_badge(seat: int) -> PanelContainer:
@@ -310,6 +344,8 @@ func _log_icon(text: String) -> String:
 
 
 func refresh_all() -> void:
+	if not game.in_opening() and not game.order.is_empty() and game.order[game.turn_index] != _on_turn_seat:
+		_place_cards(true)  # a new turn: the bar turns round
 	var cur := game.current()
 	for s in seats:
 		s.set_active(s.player == cur)
@@ -317,7 +353,7 @@ func refresh_all() -> void:
 		tavern.set_seat_state(s.player.seat, s.player == cur, s.player.alive, s.player.statuses, hold)
 	# step names are "English · ไทย": the plate shows the Thai part
 	round_label.text = "◆   รอบที่ %d · %s   ◆" % [game.round_no, game.step_name().get_slice(" · ", 1)]
-	phase_label.text = "เทิร์นของคุณ" if cur.seat == 0 else "เทิร์นของ %s" % cur.display_name
+	phase_label.visible = game.in_opening()
 	if game.in_opening():
 		round_label.text = "◆   ทอยลูกเต๋าเรียงลำดับการเล่น   ◆"
 		phase_label.text = "แต้มมากสุดได้เล่นก่อน"
@@ -517,18 +553,26 @@ func _build_table() -> void:
 	plate_style.content_margin_top = 3
 	plate_style.content_margin_bottom = 3
 	plate.add_theme_stylebox_override("panel", plate_style)
-	plate.position = Vector2(355, 76)
+	plate.position = Vector2(355, 78)
 	plate.custom_minimum_size = Vector2(250, 0)
-	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	plate.mouse_filter = Control.MOUSE_FILTER_PASS  # for the time's tooltip
 	add_child(plate)
+	plate.resized.connect(func() -> void: plate.position.x = BAR_CENTRE - plate.size.x / 2)  # the time comes and goes
+	var plate_row := HBoxContainer.new()
+	plate_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	plate_row.add_theme_constant_override("separation", 10)
+	plate_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	plate.add_child(plate_row)
 	round_label = Label.new()
 	round_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	round_label.add_theme_font_size_override("font_size", 15)
 	round_label.add_theme_color_override("font_color", UiStyle.TEXT)
-	plate.add_child(round_label)
-	# whose turn, and the seconds left beside it, as one line centred under the plate
+	plate_row.add_child(round_label)
+	# the opening's messages ("เริ่มทอยใน 3"), centred under the plate; once play starts the
+	# big card at the front of the bar says whose turn it is and the plate has the time, so
+	# this line goes and nothing more hangs over the players behind the table
 	var turn_row := HBoxContainer.new()
-	turn_row.position = Vector2(300, 103)
+	turn_row.position = Vector2(300, 105)
 	turn_row.size = Vector2(360, 26)
 	turn_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	turn_row.add_theme_constant_override("separation", 12)
@@ -546,7 +590,7 @@ func _build_table() -> void:
 	sp.content_margin_left = 10
 	sp.content_margin_right = 10
 	showdown_plate.add_theme_stylebox_override("panel", sp)
-	showdown_plate.position = Vector2(400, 126)
+	showdown_plate.position = Vector2(400, 108)
 	showdown_plate.mouse_filter = Control.MOUSE_FILTER_PASS  # for its tooltip
 	add_child(showdown_plate)
 	showdown_label = Label.new()
@@ -568,7 +612,7 @@ func _build_table() -> void:
 	time_label.add_theme_font_size_override("font_size", 14)
 	time_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
 	time_label.add_theme_constant_override("outline_size", 3)
-	turn_row.add_child(time_label)
+	plate_row.add_child(time_label)
 
 	action_button = _brass_button(Vector2(960 - MARGIN - 148, 466), Vector2(148, 58))
 	action_button.add_theme_font_size_override("font_size", 19)

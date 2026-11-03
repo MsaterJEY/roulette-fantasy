@@ -1,7 +1,8 @@
 class_name SeatPanel
 extends PanelContainer
 ## One player's card in the top bar: portrait, name, effect icons (top-right), HP pips with
-## the hand size, ring pips with the shard count. Click it to pick that player as a card
+## the hand size, ring pips with the shard count. Once play starts the player whose turn it is
+## gets a big card first in the bar and the rest are slim (name, HP, rings as a number). Click it to pick that player as a card
 ## target while targeting. Your own card is blue with a star by the name, so it's easy to
 ## tell from the bots'.
 
@@ -11,6 +12,7 @@ const TARGET := Color("ff7b54")
 const MAX_CHIPS := 3  # effect icons that fit in a card's corner
 const MINE_BG := Color(0.07, 0.17, 0.27, 0.95)
 const MINE_BORDER := Color("5ec8ff")
+const LOST := Color(0.02, 0.02, 0.02)  # an HP pip the showdown took away
 
 var player: PlayerData
 static var rings_max := PlayerData.RINGS_TO_WIN  # ring pips to show (the room's rings to win)
@@ -22,6 +24,11 @@ var _ring_pips: HBoxContainer
 var _cards_label: Label
 var _shards_label: Label
 var _status_bar: HBoxContainer
+var _portrait: TextureRect
+var _ring_row: Control
+var _slim_rings: Array[Control] = []  # ring icon + count beside the HP on a slim card
+var _slim_ring_label: Label
+var _shape := "normal"  # normal (the opening: all alike), big (on turn) or slim
 var _active := false
 var _targetable := false
 var _pulse: Tween
@@ -36,13 +43,13 @@ func setup(p: PlayerData) -> void:
 	add_child(row)
 
 	var portrait := TextureRect.new()
+	_portrait = portrait
 	portrait.texture = PixelTex.portrait(p.character if p.character != "" else "demon_hunter")
 	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	portrait.custom_minimum_size = Vector2(32, 32)
 	portrait.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	portrait.visible = not compact
 	row.add_child(portrait)
 
 	var box := VBoxContainer.new()
@@ -71,7 +78,27 @@ func setup(p: PlayerData) -> void:
 	_cards_label = _count(_hp_pips.get_parent(), "cards")
 	_ring_pips = _stat_row(box, "แหวน", UiStyle.RING)
 	_shards_label = _count(_ring_pips.get_parent(), "shard")
-	_ring_pips.get_parent().visible = rings_max > 0  # rings off: no ring row
+	_ring_row = _ring_pips.get_parent()
+	_slim_rings.append(Icons.rect("ring", 11))
+	_slim_ring_label = Label.new()
+	_slim_ring_label.add_theme_font_size_override("font_size", 10)
+	_slim_ring_label.add_theme_color_override("font_color", UiStyle.RING.lightened(0.3))
+	_slim_rings.append(_slim_ring_label)
+	for n in _slim_rings:
+		_hp_pips.get_parent().add_child(n)
+	set_shape("normal")
+
+
+## "normal" (as in the opening roll-off), "big" (their turn: first in the bar) or "slim".
+func set_shape(shape: String) -> void:
+	_shape = shape
+	var slim := shape == "slim"
+	_portrait.visible = shape == "big" or (shape == "normal" and not compact)
+	_ring_row.visible = rings_max > 0 and not slim  # rings off: no ring row
+	for n in _slim_rings:
+		n.visible = rings_max > 0 and slim
+	_hp_pips.get_parent().get_child(0).visible = not slim  # the "HP" caption: no room
+	_name_label.add_theme_font_size_override("font_size", 15 if shape == "big" else (12 if slim else 13))
 	refresh()
 
 
@@ -123,6 +150,7 @@ func refresh() -> void:
 	_fill_pips(_ring_pips, player.rings, rings_max, UiStyle.RING)
 	_cards_label.text = str(player.hand.size())
 	_shards_label.text = str(player.shards)
+	_slim_ring_label.text = "%d/%d" % [player.rings, rings_max]
 	tooltip_text = "%s · เงิน %d · เศษแหวน %d · การ์ด %d ใบ" % [player.display_name, player.gold,
 		player.shards, player.hand.size()] if not mine else ""
 	_fill_status_bar()
@@ -221,6 +249,8 @@ func _count(row: Node, icon_id: String) -> Label:
 	return label
 
 
+## `value` of `max_value` pips filled. Pips past the max (HP the showdown has taken away
+## for good) stay, black.
 func _fill_pips(pips: HBoxContainer, value: int, max_value: int, color: Color) -> void:
 	while pips.get_child_count() < max_value:
 		var pip := ColorRect.new()
@@ -228,5 +258,5 @@ func _fill_pips(pips: HBoxContainer, value: int, max_value: int, color: Color) -
 		pip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		pip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		pips.add_child(pip)
-	for i in max_value:
-		(pips.get_child(i) as ColorRect).color = color if i < value else UiStyle.EMPTY
+	for i in pips.get_child_count():
+		(pips.get_child(i) as ColorRect).color = LOST if i >= max_value else (color if i < value else UiStyle.EMPTY)

@@ -39,6 +39,9 @@ const WOUND_GLOW := Color(1.0, 0.12, 0.14, 0.6)
 ## Where you would see into the hollow inside, the cut is capped instead: each inside pixel
 ## is drawn as the point where its view ray meets the cut plane, in a blocky charcoal pattern
 ## with ember-orange cells (they cool as `heat` falls), so the cut reads as a solid burnt face.
+## Where that point is inside the part's own box (the view really goes in through its cut),
+## the cap takes the plane's depth, so parts inside the body (eyes, overlapping boxes) that
+## are nearer than the far wall don't show through it.
 const HALF_SHADER := """
 shader_type spatial;
 render_mode cull_disabled;
@@ -48,6 +51,8 @@ uniform bool use_tex = false;
 uniform vec3 plane_point;
 uniform vec3 plane_normal;
 uniform float heat = 1.0;
+uniform vec3 box_min;  // this part's mesh bounds, in its own space
+uniform vec3 box_max;
 varying vec3 world_pos;
 void vertex() {
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
@@ -61,6 +66,7 @@ void fragment() {
 	if (use_tex) {
 		c *= texture(tex, UV);
 	}
+	DEPTH = FRAGCOORD.z;
 	if (FRONT_FACING) {
 		ALBEDO = c.rgb;
 	} else {
@@ -69,8 +75,15 @@ void fragment() {
 		vec3 dir = normalize(world_pos - cam);
 		float den = dot(dir, plane_normal);
 		vec3 p = world_pos;
+		float t = -1.0;
 		if (abs(den) > 0.0001) {
-			p = cam + dir * dot(plane_point - cam, plane_normal) / den;
+			t = dot(plane_point - cam, plane_normal) / den;
+			p = cam + dir * t;
+		}
+		vec3 local = (inverse(MODEL_MATRIX) * vec4(p, 1.0)).xyz;
+		if (t > 0.0 && all(greaterThanEqual(local, box_min - 0.002)) && all(lessThanEqual(local, box_max + 0.002))) {
+			vec4 clip = PROJECTION_MATRIX * VIEW_MATRIX * vec4(p, 1.0);
+			DEPTH = clip.z / clip.w * 0.5 + 0.5;  // Compatibility renderer: NDC z is -1..1
 		}
 		vec3 t1 = normalize(cross(plane_normal, vec3(0.0, 1.0, 0.0)));
 		vec3 t2 = cross(t1, plane_normal);
@@ -505,6 +518,9 @@ func split(k: float) -> void:
 			if std.albedo_texture:
 				sm.set_shader_parameter("tex", std.albedo_texture)
 				sm.set_shader_parameter("use_tex", true)
+			var bounds := mi.mesh.get_aabb()
+			sm.set_shader_parameter("box_min", bounds.position)
+			sm.set_shader_parameter("box_max", bounds.end)
 			mi.material_override = sm
 			mats.append(sm)
 		_halves.append(half)

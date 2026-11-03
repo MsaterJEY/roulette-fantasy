@@ -68,6 +68,7 @@ var _targeting: Dictionary = {}  # {"index": hand index, "card": card} while cho
 var _hand_map: Array[int] = []  # button order -> hand index (shuffled while blind)
 var _replacing := -1  # shop slot being bought with a full hand: click a hand card to swap it out
 var _hand_sig := ""  # what the hand buttons show; online snapshots come 4x a second and mustn't rebuild them
+var _shop_sig := ""  # the same for the shop's buttons
 var _order_badges: Array[PanelContainer] = []  # opening roll result under each player card
 var _card_lands_ms := 0  # when the card in flight arrives: hit/block effects wait for it
 var _ko_until_ms: Dictionary = {}  # seat -> when its finisher ends (the knockout pose waits)
@@ -1228,6 +1229,14 @@ func _build_shop() -> void:
 
 func _fill_shop() -> void:
 	var me := game.players[0]
+	# like the hand: rebuilding takes the hover off the buy button under the mouse
+	var reasons := range(game.shop.size()).map(func(s: int) -> String: return game.can_buy(me, s))
+	var names := game.shop.map(func(c: Dictionary) -> String: return "" if c.is_empty() else game.card_name(me, c))
+	var sig := str([game.shop, names, reasons, me.gold, me.hand.size(), game.hand_limit, game.hand_full(me),
+		_replacing, me.has("no_shop"), me.shards, game.rings_to_win, game.can_exchange(me), game.minigames_played])
+	if sig == _shop_sig and shop_list.get_child_count() > 0:
+		return
+	_shop_sig = sig
 	for child in shop_list.get_children():
 		shop_list.remove_child(child)
 		child.queue_free()

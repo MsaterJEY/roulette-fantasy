@@ -147,24 +147,27 @@ func _build_home() -> Control:
 	join.pressed.connect(show_screen.bind("join"))
 	col.add_child(join)
 
-	var row := HBoxContainer.new()
+	var row := HBoxContainer.new()  # centred under the logo plate (the web has no Quit)
 	row.position = Vector2(48, 452)
+	row.custom_minimum_size = Vector2(300, 0)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 8)
 	s.add_child(row)
-	var settings := MenuUi.small_button(" ตั้งค่า ", "", 96)
+	var settings := MenuUi.small_button(" ตั้งค่า ", "", 94)
 	settings.pressed.connect(_open_settings)
 	row.add_child(settings)
-	var howto := MenuUi.small_button(" วิธีเล่น ", "", 96)
+	var howto := MenuUi.small_button(" วิธีเล่น ", "", 94)
 	howto.pressed.connect(_open_howto)
 	row.add_child(howto)
-	var quit := MenuUi.small_button(" ออกจากเกม ", "", 96)
+	var quit := MenuUi.small_button(" ออกจากเกม ", "", 94)
 	quit.pressed.connect(func() -> void:  # through the sound player, so it quits cleanly
 		get_tree().root.propagate_notification(NOTIFICATION_WM_CLOSE_REQUEST))
 	row.add_child(quit)
 	quit.visible = not OS.has_feature("web")  # a browser tab can't be closed by the page
 
 	var ver := MenuUi.label("v0.3", 11, UiStyle.TEXT_DIM)
-	ver.position = Vector2(W - 50, 516)
+	ver.position = Vector2(W - 20, 512)  # right edge in line with the badge (below)
+	ver.resized.connect(func() -> void: ver.position.x = W - 20 - ver.size.x)
 	s.add_child(ver)
 	return s
 
@@ -200,7 +203,7 @@ func _build_find() -> Control:
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		empty.add_child(l)
 	var go := MenuUi.big_button("swords", "สร้างห้องแทน", "", true, 210)
-	go.position = Vector2(W - 230, 470)
+	go.position = Vector2(W - 230, 473)  # level with Back (488-522)
 	go.pressed.connect(show_screen.bind("create"))
 	s.add_child(go)
 	_back(s)
@@ -534,6 +537,7 @@ func _build_lobby() -> Control:
 
 	var pick := MenuUi.panel(Vector2(20, 362), Vector2(610, 112))
 	s.add_child(pick)
+	line.resized.connect(func() -> void: pick.custom_minimum_size.x = line.size.x)  # the line-up can widen it
 	var pbox := VBoxContainer.new()
 	pbox.add_theme_constant_override("separation", 6)
 	pick.add_child(pbox)
@@ -769,7 +773,7 @@ func _start_game() -> void:
 
 func _build_badge() -> void:
 	var b := Button.new()
-	b.position = Vector2(W - 206, 12)
+	b.position = Vector2(W - 210, 12)
 	b.custom_minimum_size = Vector2(190, 46)
 	b.add_theme_stylebox_override("normal", MenuUi.panel_style(MenuUi.GOLD_DARK, 2, MenuUi.PANEL))
 	b.add_theme_stylebox_override("hover", MenuUi.panel_style(MenuUi.GOLD, 2, MenuUi.PANEL))
@@ -834,6 +838,7 @@ func _open_modal(title: String, box_size: Vector2) -> VBoxContainer:
 	_modal.add_child(veil)
 	var p := MenuUi.panel((Vector2(W, 540) - box_size) / 2, box_size, MenuUi.GOLD)
 	_modal.add_child(p)
+	p.resized.connect(func() -> void: p.position = (Vector2(W, 540) - p.size) / 2)  # its contents can widen it
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 12)
 	p.add_child(box)

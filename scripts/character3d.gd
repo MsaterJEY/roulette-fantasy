@@ -6,8 +6,8 @@ extends Node3D
 ## it to face the table. `modulate` tints every part (hit flash, dimmed when it's not their
 ## turn, grey when knocked out). Breathes, looks around and blinks while idle; pulls a pained
 ## face when hit; shows x x eyes when knocked out.
-## Finishers can cut it in half top to bottom (split()), shatter it (shatter()), or char it
-## black (burn()).
+## Finishers can cut it in half top to bottom (split()), shatter it (shatter()), char it
+## black (burn()), or take its head off (behead(), topple()).
 
 ## Colours per character. skin/hair/eye also feed the top-bar portrait (PixelTex.portrait).
 const LOOKS := {
@@ -28,6 +28,7 @@ const GOLD := Color("d6b048")
 const CARD_BACK := Color("27306b")
 const CUT_Y := 0.74  # where the upper body sits on the lower one (and where a cut goes)
 const SLUMP := 0.35  # forward lean when knocked out
+const TOPPLE_X := 1.25  # Final Arrow: the headless upper body face down on the table
 const KO_TINT := Color(0.45, 0.45, 0.5)
 const CHARRED := Color(0.03, 0.025, 0.025)  # burnt right through
 const TURN_SHARE := 0.55  # how far an attacker turns towards its target
@@ -582,13 +583,46 @@ func head_point(slumped := false) -> Vector3:
 	return p
 
 
-## Final Arrow: skewered. Snaps straight into the slumped knocked-out pose, then the colour
-## fades to the knocked-out grey over `fade` seconds.
-func pinned(fade: float) -> void:
+## Final Arrow, as the arrow drives down through the head: a jolt, the body sinks a little.
+func arrow_jolt(seconds: float) -> void:
+	set_knocked_out(true)
+	_face_hold = 0.0
+	var t := _body.create_tween()
+	t.tween_property(_body, "position:y", -0.05, seconds * 0.3).set_ease(Tween.EASE_OUT)
+	t.tween_property(_body, "position:y", -0.03, seconds * 0.7)
+	var h := _head.create_tween()
+	for n in maxi(1, int(seconds / 0.04)):  # at least one shake, however fast the game runs
+		h.tween_property(_head, "rotation:z", randf_range(-0.12, 0.12), minf(0.04, seconds))
+
+
+## Final Arrow: the head comes off. It moves into the room (`room`) where it is, and is
+## returned for the tavern to throw; the body keeps a bloody neck stump.
+func behead(room: Node) -> Node3D:
 	destroyed = true
 	set_knocked_out(true)
-	rotation.x = SLUMP
-	create_tween().tween_property(self, "modulate", KO_TINT, fade)
+	_box(_upper, Vector3(0.2, 0.05, 0.18), Vector3(0, 0.245, 0), Color("6a0a12"))  # stump
+	_box(_head, Vector3(0.2, 0.03, 0.18), Vector3(0, -0.19, 0), Color("6a0a12"))  # under the head
+	var head := _head
+	head.reparent(room, true)
+	return head
+
+
+## Final Arrow, headless: the body sways, losing its balance (`sway` seconds), then falls
+## heavily forward onto the table (`fall` seconds, gathering speed) and lies still, its colour
+## draining to the knocked-out grey. Returns where the chest lands (for the dust).
+func topple(sway: float, fall: float) -> Vector3:
+	var t := create_tween()
+	t.tween_property(_upper, "rotation:x", 0.3, sway).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	t.parallel().tween_property(_upper, "rotation:z", 0.1, sway * 0.4)
+	t.parallel().tween_property(_upper, "rotation:z", -0.06, sway * 0.6).set_delay(sway * 0.4)
+	t.tween_property(_upper, "rotation:x", TOPPLE_X, fall).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	t.parallel().tween_property(_upper, "rotation:z", 0.0, fall)
+	t.parallel().tween_property(self, "rotation:x", 0.12, fall).set_ease(Tween.EASE_IN)
+	t.tween_property(_upper, "rotation:x", TOPPLE_X - 0.12, 0.07)  # a heavy little bounce
+	t.tween_property(_upper, "rotation:x", TOPPLE_X, 0.1)
+	t.tween_property(self, "modulate", KO_TINT, 0.8)
+	var chest := _upper.position + Basis(Vector3.RIGHT, TOPPLE_X) * Vector3(0, 0.25, 0.1)
+	return global_transform * (Basis(Vector3.RIGHT, 0.12) * chest)
 
 
 ## Soul Reap: the body is gone; returns its colours (for the flying pieces) and hides it.

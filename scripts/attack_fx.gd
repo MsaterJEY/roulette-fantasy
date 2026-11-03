@@ -7,7 +7,8 @@ extends RefCounted
 ##          blade of light chops straight down; the target splits top to bottom and the
 ##          halves slowly part, the cut charred.
 ##   thorn  (Verdant Ranger) Thorn Shot: a green arrow.              Final Arrow: an arrow shot
-##          into the sky; a giant arrow falls through the target's head into the table.
+##          into the sky; a glowing arrow falls through the target's head and takes it off;
+##          the head and the arrow drop onto the table, the headless body topples onto it.
 ##   flame  (Flame Dragon)   Inferno Claw: fiery claw streaks.       Dragon's Judgment: a narrow
 ##          high-pressure jet of fire; the target catches fire, chars black, then the
 ##          flames on it die down to smoke and embers.
@@ -18,7 +19,7 @@ extends RefCounted
 ## Seconds from the start of an attack to the hit, and how long a finisher runs after it.
 const IMPACT := {"blood": 0.5, "arcane": 0.55, "thorn": 0.45, "flame": 0.55}
 ## (Each covers its whole animation: the game waits this long before play goes on.)
-const FINISH := {"blood": 2.8, "arcane": 2.6, "thorn": 2.8, "flame": 4.6}
+const FINISH := {"blood": 2.8, "arcane": 2.6, "thorn": 2.9, "flame": 4.6}
 ## Soul Reap timing (x k): the slash flurry; short wounds while the body shudders; the
 ## wounds tear open; the burst a moment later.
 const SLASHES_SECONDS := 0.55
@@ -136,27 +137,12 @@ func finisher(a: int, t: int, style: String, k: float) -> float:
 				if victim:  # the halves part slowly
 					victim.split(k))
 		"thorn":
-			# Final Arrow: one arrow up into the sky, then a giant one falls through the head
+			# Final Arrow: one arrow up into the sky, then a glowing one falls straight down
+			# through the head and takes it off (_final_arrow)
 			var from := tv._hand_point(a)
 			_after(0.31 * k, func() -> void:  # loosed when the bow, aimed at the sky, is drawn
 				_fly(_arrow(color, 1.0), from + Vector3(0, 0.3, 0), from + Vector3(0, 3.5, -0.5), 0.4 * k, 0.0, true))
-			# aim at where the head will be once pinned (slumped), so it ends up skewered
-			var head := victim.head_point(true) if victim else to + Vector3(0, 0.25, 0)
-			var pin := head.lerp(Vector3(0, TavernView.TABLE_TOP, 0), 0.35)  # into the table in front
-			pin.y = TavernView.TABLE_TOP + 0.05
-			var drop_from := head + (head - pin).normalized() * 2.6
-			_after(0.8 * k, func() -> void:
-				var giant := _arrow(color, 3.2)
-				giant.position = drop_from
-				tv.viewport.add_child(giant)
-				giant.look_at(pin)
-				var gt := giant.create_tween()
-				gt.tween_property(giant, "position", pin + (drop_from - pin).normalized() * 0.55, 0.22 * k).set_ease(Tween.EASE_IN)
-				gt.tween_callback(func() -> void:
-					_particles(pin, Color("c8a070"), Color("6b4426"), 30, 1.0, 0.6 * k, 4.0)  # splinters
-					_burst(head, color, 1.0, 0.3 * k)
-					if victim:  # pinned on the spot; the colour drains away slowly
-						victim.pinned(1.6 * k)))
+			_final_arrow(t, color, k)
 		"flame":
 			# Dragon's Judgment: a high-pressure jet of fire from the mouth. The target catches
 			# fire at once and chars black; once black, the flames on it slowly die down.
@@ -193,7 +179,7 @@ func _normal_sounds(style: String, impact: float, release: float) -> void:
 
 
 ## Finishers: Soul Reap's slashes and burst; King's Verdict's chop; Final Arrow's sky shot and
-## the giant arrow pinning the table; the dragon's roar, fire jet and the target burning.
+## the arrow striking the head; the dragon's roar, fire jet and the target burning.
 func _finisher_sounds(style: String, k: float) -> void:
 	match style:
 		"blood":
@@ -205,7 +191,7 @@ func _finisher_sounds(style: String, k: float) -> void:
 			_sfx("verdict", 0.2 * k)
 		"thorn":
 			_sfx("bow", 0.31 * k)
-			_sfx("arrow_pin", 1.02 * k)
+			_sfx("arrow_pin", (ARROW_DROP_AT + ARROW_FALL - 0.05) * k)
 		"flame":
 			_sfx("dragon_roar")
 			_sfx("dragon_fire", GROWL_SECONDS * k)
@@ -487,6 +473,126 @@ func _body_fire(at: Vector3, full: float, fade: float) -> void:
 	t.tween_callback(fire.queue_free)
 	_after(full, func() -> void:
 		_particles(at, Color("ffb347"), Color("ff3a1a"), 30, 0.5, fade + 0.5, -0.7))  # embers
+
+
+## Final Arrow, in eight beats (times x k, from the knockout hit):
+##   1. ARROW_FALL: a glowing arrow drops from the sky, point down, onto the head;
+##   2. the strike: a green flash and a hard camera shake;
+##   3. PIERCE: it drives on down through the head, crackling green, the body jolting;
+##   4. the head comes off at the neck;
+##   5. the arrow falls away onto the table, bounces once and lies there;
+##   6. the head drops onto the table, lands and slides a little way, turning;
+##   7. SWAY: the headless body loses its balance;
+##   8. TOPPLE: it falls heavily forward onto the table and lies still.
+const ARROW_DROP_AT := 0.75
+const ARROW_FALL := 0.24
+const PIERCE := 0.2
+const SWAY := 0.55
+const TOPPLE := 0.38
+
+
+func _final_arrow(t: int, color: Color, k: float) -> void:
+	var victim := tv.character(t)
+	if victim == null:
+		return
+	var head := victim.head_point()
+	var head_top := head.y + 0.2 * TavernView.CHARACTER_SCALE
+	var neck := head.y - 0.22 * TavernView.CHARACTER_SCALE
+	# on the table in front of them: towards the middle, and a little to either side
+	var inward := (-victim.global_position * Vector3(1, 0, 1)).normalized()
+	var side := (victim.global_basis.x * Vector3(1, 0, 1)).normalized()
+	var on_table := TavernView.TABLE_TOP
+	var arrow_land := Vector3(head.x, on_table + 0.04, head.z) + inward * 0.6 + side * 0.35
+	var head_land := Vector3(head.x, on_table + 0.22, head.z) + inward * 0.38 - side * 0.42
+	var strike := ARROW_DROP_AT + ARROW_FALL
+	var off := strike + PIERCE  # the head comes off
+	var giant := _magic_arrow(color, 2.2)
+	giant.set_meta("leftover", true)  # cleared with your seat (TavernView.watch_your_death)
+	var length := 0.29 * 2.2  # from the arrow's middle to its point
+	# 1. falls point down out of the sky
+	_after(ARROW_DROP_AT * k, func() -> void:
+		giant.basis = Basis(Vector3.RIGHT, -PI / 2).scaled(Vector3.ONE * 2.2)  # -Z (the point) down
+		giant.position = Vector3(head.x, head_top + 2.4, head.z)
+		tv.viewport.add_child(giant)
+		var trail := _glow_quad(color, PixelTex.glow(), 0.5)  # a streak of light along the fall
+		trail.position = giant.position
+		tv.viewport.add_child(trail)
+		var ft := giant.create_tween()
+		ft.tween_property(giant, "position:y", head_top + length, ARROW_FALL * k).set_ease(Tween.EASE_IN)
+		var tt := trail.create_tween()
+		tt.tween_property(trail, "position:y", head_top, ARROW_FALL * k).set_ease(Tween.EASE_IN)
+		tt.tween_callback(trail.queue_free))
+	# 2. the strike
+	_after(strike * k, func() -> void:
+		_burst(Vector3(head.x, head_top, head.z), color, 1.4, 0.3 * k)
+		_particles(Vector3(head.x, head_top, head.z), Color("d8ffb0"), color, 40, 2.0, 0.5 * k, 3.0)
+		tv.shake(0.06, 0.35 * k))
+	# 3. drives on down through the head to the neck, crackling
+	_after(strike * k, func() -> void:
+		giant.create_tween().tween_property(giant, "position:y", neck + length, PIERCE * k).set_ease(Tween.EASE_OUT)
+		_particles(head, Color("b8ff8a"), color, 50, 0.9, PIERCE * 2.0 * k, -0.5, 0.025)
+		victim.arrow_jolt(PIERCE * k))
+	# 4. the head comes off; 6. it drops onto the table and slides
+	_after(off * k, func() -> void:
+		_particles(Vector3(head.x, neck, head.z), Color("c0102a"), Color("4a0008"), 40, 1.2, 0.6 * k, 4.0)
+		_burst(Vector3(head.x, neck, head.z), color, 0.8, 0.25 * k)
+		tv.shake(0.03, 0.2 * k)
+		var off_head := victim.behead(tv.viewport)
+		off_head.set_meta("leftover", true)
+		_drop_head(off_head, head_land, inward, k))
+	# 5. the arrow falls away onto the table, bounces once, lies there
+	_after(off * k, func() -> void:
+		var start := giant.position
+		var tip_down := giant.basis
+		var lie := Basis.looking_at(inward + side, Vector3.UP).scaled(Vector3.ONE * 2.2)  # flat, point to the middle
+		var fall := func(s: float) -> void:
+			giant.position = start.lerp(arrow_land, s) + Vector3(0, 0.15 * sin(PI * s), 0)
+			giant.basis = Basis(tip_down.get_rotation_quaternion().slerp(lie.get_rotation_quaternion(), s)).scaled(Vector3.ONE * 2.2)
+		var bounce := func(s: float) -> void:
+			giant.position = arrow_land + Vector3(0, 0.06 * sin(PI * s), 0) + side * 0.05 * s
+		var at := giant.create_tween()
+		at.tween_method(fall, 0.0, 1.0, 0.3 * k).set_ease(Tween.EASE_IN)
+		at.tween_method(bounce, 0.0, 1.0, 0.18 * k)
+		at.tween_callback(func() -> void:
+			_particles(arrow_land, Color("c8a070"), Color("6b4426"), 10, 0.5, 0.4 * k, 4.0)))  # splinters
+	# 7-8. the headless body sways, then falls heavily onto the table
+	_after((off + 0.15) * k, func() -> void:
+		var chest := victim.topple(SWAY * k, TOPPLE * k)
+		_after((SWAY + TOPPLE) * k, func() -> void:
+			_particles(chest, Color("a08a6a"), Color("4a3a2a"), 24, 0.6, 0.6 * k, 1.5)  # dust
+			tv.shake(0.04, 0.25 * k)))
+
+
+## Final Arrow's arrow: all of it glowing emerald, with a halo round the point, so it reads
+## against the dark room as it falls.
+func _magic_arrow(color: Color, scale: float) -> Node3D:
+	var arrow := _arrow(color, scale)
+	(arrow.get_child(0) as MeshInstance3D).material_override = tv._mat(color.darkened(0.35), null, Vector3.ONE, true)
+	var halo := _glow_quad(color, PixelTex.glow(), 0.22)
+	halo.position = Vector3(0, 0, -0.27)
+	arrow.add_child(halo)
+	return arrow
+
+
+## Final Arrow: the head (already in the room) hops off the neck, falls onto the table with
+## gravity, then slides on a little way, turning, and stops.
+func _drop_head(head: Node3D, land: Vector3, inward: Vector3, k: float) -> void:
+	var start := head.position
+	var spin := head.rotation
+	# lands on one side (a quarter turn), so the block lies flat on the felt
+	var rest := Vector3(0.0, spin.y + randf_range(-0.8, 0.8), PI / 2 * (1.0 if randf() < 0.5 else -1.0))
+	var arc := func(s: float) -> void:  # a little hop up, then down under gravity
+		var p := start.lerp(land, s)
+		p.y = start.y + 0.6 * s - (0.6 + start.y - land.y) * s * s
+		head.position = p
+		head.rotation = spin.lerp(rest, s)
+	var slide_to := land + inward * 0.06
+	var ht := head.create_tween()
+	ht.tween_method(arc, 0.0, 1.0, 0.42 * k)
+	ht.tween_callback(func() -> void:
+		_particles(land, Color("c0102a"), Color("4a0008"), 12, 0.4, 0.4 * k, 4.0))
+	ht.tween_property(head, "position", slide_to, 0.35 * k).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	ht.parallel().tween_property(head, "rotation:y", rest.y + 0.5, 0.35 * k).set_ease(Tween.EASE_OUT)
 
 
 ## Soul Reap: the shattered body as chunks in its colours, flung out and left lying on the

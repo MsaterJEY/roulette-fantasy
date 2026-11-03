@@ -863,7 +863,7 @@ func _show_move(who: PlayerData, c: Dictionary, finisher: bool) -> void:
 	move_label.modulate.a = 0.0
 	var t := move_label.create_tween()
 	t.tween_property(move_label, "modulate:a", 1.0, 0.12)
-	t.tween_interval((1.6 if finisher else 0.8) / game.speed)
+	t.tween_interval(0.8 / game.speed)  # gone before a finisher's big moment (Final Arrow's strike)
 	t.tween_property(move_label, "modulate:a", 0.0, 0.4)
 
 

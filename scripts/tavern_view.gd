@@ -140,6 +140,20 @@ func _sound(sound: String, delay := 0.0, volume_db := 0.0) -> void:
 		sfx.play(sound, delay, volume_db)
 
 
+## A camera shake of `strength` (view units) dying away over `seconds`. Uses the lens offset,
+## so it adds to whatever the camera is doing (the death-camera glide).
+func shake(strength: float, seconds: float) -> void:
+	var t := create_tween()
+	var jitter := func(s: float) -> void:
+		var a := strength * (1.0 - s)
+		_camera.h_offset = randf_range(-a, a)
+		_camera.v_offset = randf_range(-a, a)
+	t.tween_method(jitter, 0.0, 1.0, seconds)
+	t.tween_callback(func() -> void:
+		_camera.h_offset = 0.0
+		_camera.v_offset = 0.0)
+
+
 ## The hero at `seat`. You (seat 0) have none, except while your own knockout plays
 ## (watch_your_death()).
 func character(seat: int) -> Character3D:
@@ -195,7 +209,7 @@ func watch_your_death(character_id: String, seconds: float, k: float) -> void:
 		# nor what the finisher left there (the giant arrow, pieces) right in front of the camera
 		for i in range(before, viewport.get_child_count()):
 			var n := viewport.get_child(i) as Node3D
-			if n and Vector2(n.global_position.x - p.x, n.global_position.z - p.z).length() < 0.9:
+			if n and (n.has_meta("leftover") or Vector2(n.global_position.x - p.x, n.global_position.z - p.z).length() < 0.9):
 				n.queue_free())
 
 

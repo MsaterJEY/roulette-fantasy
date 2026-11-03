@@ -84,6 +84,8 @@ var _ko_until_ms: Dictionary = {}  # seat -> when its finisher ends (the knockou
 var _dying_cards: Dictionary = {}  # seat -> cards in hand when the killing blow landed
 var move_label: Label  # the attack's move name, flashed at the top of the table
 var _select: CharacterSelect
+var _loading: CanvasLayer  # covers the table until the 3D room has been drawn
+var _loading_since := 0
 
 
 func _ready() -> void:
@@ -113,6 +115,7 @@ func _ready() -> void:
 	_build_log()
 	if auto_pick == "" and game.autoplay:
 		auto_pick = "random"
+	_show_loading()  # a guest waits under it for the host's game too
 	if auto_pick != "":
 		_start(CharacterDB.ids().pick_random() if auto_pick == "random" else auto_pick)
 	elif NetPlay.node().is_guest():  # online: the host's game arrives, then the table is set up from it
@@ -123,6 +126,8 @@ func _ready() -> void:
 	elif GameConfig.characters.size() == _seat_count:
 		_start(GameConfig.characters[0])  # seated in the lobby
 	else:
+		_loading.queue_free()  # the character screen first; the cover comes back after it
+		_loading = null
 		_select = CharacterSelect.new()
 		_select.sfx = sfx
 		_select.size = Vector2(960, 540)
@@ -136,6 +141,7 @@ func _start(my_id: String) -> void:
 	if _select:
 		_select.queue_free()
 		_select = null
+		_show_loading()
 	if GameConfig.characters.size() != _seat_count or GameConfig.characters[0] != my_id:
 		GameConfig.players = _seat_count
 		GameConfig.fill_seats(my_id)  # no lobby (tests, or the table run on its own)
@@ -168,6 +174,7 @@ func _start(my_id: String) -> void:
 	_build_gold_counter()
 	_build_dice_tip()
 	_build_minigame_and_result()
+	_hide_loading()
 	# connected after the UI exists; the first turn starts once the opening roll-off is shown
 	game.turn_started.connect(_on_turn_started)
 	game.state_changed.connect(refresh_all)
@@ -511,6 +518,64 @@ func _roll_label(parent: Container, font_size: int, color: Color) -> Label:
 	label.add_theme_color_override("font_color", color)
 	parent.add_child(label)
 	return label
+
+
+## The loading screen: the title and a turning die over a dark room, so the table never
+## shows half built (grey, before the 3D room is first drawn; on the web its shaders compile
+## then). Over everything, menus and results included.
+func _show_loading() -> void:
+	if _loading:
+		return
+	_loading = CanvasLayer.new()
+	_loading.layer = 50
+	add_child(_loading)
+	_loading_since = Time.get_ticks_msec()
+	var bg := ColorRect.new()
+	bg.color = Color(0.06, 0.04, 0.03)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	_loading.add_child(bg)
+	var title := Label.new()
+	title.text = "Roulette Fantasy"
+	title.position = Vector2(0, 190)
+	title.size = Vector2(960, 60)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 44)
+	title.add_theme_color_override("font_color", UiStyle.ACTIVE)
+	title.add_theme_color_override("font_outline_color", Color("2a1408"))
+	title.add_theme_constant_override("outline_size", 10)
+	bg.add_child(title)
+	var die := Icons.rect("dice", 40)
+	die.position = Vector2(480 - 20, 278)
+	die.pivot_offset = Vector2(20, 20)
+	bg.add_child(die)
+	die.create_tween().set_loops().tween_property(die, "rotation", TAU, 1.2).from(0.0)
+	var text := Label.new()
+	text.text = "กำลังเตรียมโต๊ะ..."
+	text.position = Vector2(0, 332)
+	text.size = Vector2(960, 30)
+	text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	text.add_theme_font_size_override("font_size", 16)
+	text.add_theme_color_override("font_color", UiStyle.TEXT_DIM)
+	bg.add_child(text)
+
+
+## The table is built: once the room has really been drawn a few times (and the cover has
+## been up a moment, so it doesn't just flicker), fade it away.
+func _hide_loading() -> void:
+	if _loading == null:
+		return
+	var cover := _loading
+	_loading = null
+	for i in 3:
+		await RenderingServer.frame_post_draw
+	var wait := 0.5 - (Time.get_ticks_msec() - _loading_since) / 1000.0
+	if wait > 0.0:
+		await get_tree().create_timer(wait).timeout
+	var bg: ColorRect = cover.get_child(0)
+	var t := bg.create_tween()
+	t.tween_property(bg, "modulate:a", 0.0, 0.35)
+	t.tween_callback(cover.queue_free)
 
 
 # ---------- building the screen ----------

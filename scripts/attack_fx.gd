@@ -6,7 +6,7 @@ extends RefCounted
 ##          all of it in pulsing red light.
 ##   arcane (Arcane Knight)  Arcane Slash: a cyan crescent flies.    King's Verdict: a giant
 ##          blade of light chops straight down; the target splits top to bottom and the
-##          halves slowly part, the cut charred.
+##          halves slowly part, the cut charred, all in a blaze of gold light.
 ##   thorn  (Verdant Ranger) Thorn Shot: a green arrow.              Final Arrow: an arrow shot
 ##          into the sky; a glowing arrow falls through the target's head and takes it off;
 ##          the head and the arrow drop onto the table, the headless body topples onto it.
@@ -148,8 +148,21 @@ func finisher(a: int, t: int, style: String, k: float) -> float:
 			bt.tween_property(blade, "position", to - Vector3(0, 0.55, 0), 0.22 * k).set_ease(Tween.EASE_IN)
 			bt.tween_property(blade, "transparency", 1.0, 0.35 * k)
 			bt.tween_callback(blade.queue_free)
+			# gold light: round the knight as the sword goes up, a blaze where it lands, then
+			# the cut glowing gold while the halves part
+			var gold := Color("ffcc4a")
+			var lit := to + (tv._camera.global_position - to).normalized() * 0.4  # in front, to light the body
+			if killer:
+				var knight := killer.global_position + Vector3(0, 1.0, 0)
+				knight += (tv._camera.global_position - knight).normalized() * 0.5
+				_light_flash(knight, gold, 2.8, 1.8, 0.14 * k, 0.1 * k, 0.4 * k)
+			_light_flash(to + Vector3(0, 0.8, 0), gold, 3.0, 2.0, 0.2 * k, 0.0, 0.05 * k)  # the blade coming down
 			_after(0.2 * k, func() -> void:
 				_burst(to, Color.WHITE, 1.6, 0.35 * k)
+				_burst(to, gold, 2.6, 0.6 * k)
+				_light_flash(lit, gold, 9.0, 4.5, 0.03 * k, 0.12 * k, 0.8 * k)
+				_light_flash(lit, gold, 2.2, 1.6, 0.3 * k, 1.1 * k, 0.6 * k)  # the cut, as it parts
+				_particles(to, Color("fff0a0"), gold, 70, 1.8, 0.9 * k, 0.8)  # gold sparks
 				_particles(to, Color("ffb347"), Color("2a1a10"), 36, 0.6, 1.6 * k, -0.5)  # embers from the cut
 				if victim:  # the halves part slowly
 					victim.split(k))

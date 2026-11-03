@@ -46,6 +46,7 @@ var sfx: Sfx  # the sound effects the user picked in the sound lab
 var log_box: RichTextLabel
 var log_panel: PanelContainer
 var log_tab: Button  # the folded history: a tab on the right edge
+var full_button: Button  # top right, under the dice
 var defense_panel: PanelContainer
 var defense_label: Label
 var banner: Label
@@ -585,6 +586,9 @@ func _build_table() -> void:
 
 ## Top right: a dice button; hover (or click to keep it open) shows how a roll scores.
 func _build_dice_tip() -> void:
+	full_button = ScreenMode.button()  # full screen, under the dice
+	full_button.position = Vector2(960 - MARGIN - 44, 17 + 44 + 8)
+	add_child(full_button)
 	var b := _brass_button(Vector2(960 - MARGIN - 44, 17), Vector2(44, 44))  # level with the player cards
 	b.icon = Icons.get_icon("dice")
 	b.add_theme_constant_override("icon_max_width", 24)
@@ -1175,6 +1179,7 @@ func _on_game_over(winner: int) -> void:
 	t.tween_interval(RESULT_WAIT_SECONDS / (game.speed if game.autoplay else 1.0))  # full wait, even spectating
 	t.tween_callback(func() -> void:
 		banner.visible = false
+		full_button.visible = false  # the results have their own, at the top
 		result_panel.show_result(game, winner))
 
 

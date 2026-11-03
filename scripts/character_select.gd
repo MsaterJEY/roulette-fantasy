@@ -40,6 +40,9 @@ func _ready() -> void:
 	sub.add_theme_font_size_override("font_size", 13)
 	sub.add_theme_color_override("font_color", UiStyle.TEXT_DIM)
 	add_child(sub)
+	var full := ScreenMode.button()
+	full.position = Vector2(960 - 16 - 44, 17)
+	add_child(full)
 
 	var chars := CharacterDB.all()
 	var gap := 14.0

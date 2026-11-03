@@ -47,6 +47,10 @@ func _ready() -> void:
 	home.pressed.connect(_to_menu.bind("home"))
 	lbox.add_child(home)
 
+	var full := ScreenMode.button()  # top right, in from the edges like the left panel
+	full.position = Vector2(960 - 14 - 44, 14)
+	add_child(full)
+
 	var right := VBoxContainer.new()
 	right.position = Vector2(782, 236)
 	right.add_theme_constant_override("separation", 10)

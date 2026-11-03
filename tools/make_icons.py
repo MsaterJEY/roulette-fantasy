@@ -172,6 +172,23 @@ def dice():
     return img
 
 
+def corners(inward):
+    """Four L-shaped corner marks: at the edges (go full screen), or turned round near the
+    middle (back to a window). Drawn for the top left and mirrored."""
+    img, d = new()
+    if inward:  # the corner points at the middle, the arms reach out
+        arms = [(2, 5, 6, 6), (5, 2, 6, 6)]
+    else:  # the corner sits at the edge, the arms reach in
+        arms = [(1, 1, 5, 2), (1, 1, 2, 5)]
+    for x0, y0, x1, y1 in arms:
+        for fx in (False, True):
+            for fy in (False, True):
+                xs = (15 - x1, 15 - x0) if fx else (x0, x1)
+                ys = (15 - y1, 15 - y0) if fy else (y0, y1)
+                d.rectangle([xs[0], ys[0], xs[1], ys[1]], fill=WHITE)
+    return img
+
+
 def shop():
     img, d = new()
     d.rectangle([2, 6, 13, 14], fill=GOLD, outline=K)  # bag
@@ -269,7 +286,7 @@ ICONS = {
     "blind": blind, "free_block": free_block,
     # HUD: dice roll, shop, combat, rings, shards, hand size, minigame, turn marker
     "dice": dice, "shop": shop, "swords": swords, "ring": ring, "shard": shard, "cards": cards,
-    "star": star, "turn": turn,
+    "star": star, "turn": turn, "fullscreen": lambda: corners(False), "windowed": lambda: corners(True),
     # character weapons (each character's Attack card)
     "blood_sword": blood_sword, "arcane_sword": arcane_sword, "thorn_bow": thorn_bow,
     "flame_claw": flame_claw,

@@ -895,6 +895,12 @@ func _build_badge() -> void:
 	b.tooltip_text = "ตั้งค่าชื่อผู้เล่น"
 	b.pressed.connect(_open_settings)
 	add_child(b)
+	var full := ScreenMode.button(46)  # full screen, beside the badge and as tall
+	full.position = Vector2(W - 210 - 8 - 46, 12)
+	full.add_theme_stylebox_override("normal", MenuUi.panel_style(MenuUi.GOLD_DARK, 2, MenuUi.PANEL))
+	full.add_theme_stylebox_override("hover", MenuUi.panel_style(MenuUi.GOLD, 2, MenuUi.PANEL))
+	full.add_theme_stylebox_override("pressed", MenuUi.panel_style(MenuUi.GOLD, 2, MenuUi.PANEL))
+	add_child(full)
 	var row := HBoxContainer.new()
 	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	row.offset_left = 10

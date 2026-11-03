@@ -2,7 +2,8 @@ class_name AttackFx
 extends RefCounted
 ## The characters' attack animations in the 3D tavern, by style (data/characters.json):
 ##   blood  (Demon Hunter)   Blood Slash: lunge and a red slash.     Soul Reap: a flurry of
-##          slashes leaves glowing wounds; a second later the target bursts into red mist.
+##          slashes leaves glowing wounds; a second later the target bursts into red mist,
+##          all of it in pulsing red light.
 ##   arcane (Arcane Knight)  Arcane Slash: a cyan crescent flies.    King's Verdict: a giant
 ##          blade of light chops straight down; the target splits top to bottom and the
 ##          halves slowly part, the cut charred.
@@ -97,7 +98,23 @@ func finisher(a: int, t: int, style: String, k: float) -> float:
 		"blood":
 			# Soul Reap: four quick slashes from every side, each leaving a short glowing wound;
 			# the target shudders for a second, the wounds tear open, and 0.3 s later it
-			# bursts into a cloud of red mist and pieces
+			# bursts into a cloud of red mist and pieces. Red light all the way: round the hunter
+			# while the blade flies, a flash with every slash, the wounds' throb, the burst.
+			var slashes := SLASHES_SECONDS * k
+			var lit := to + (tv._camera.global_position - to).normalized() * 0.4  # in front, to light the body
+			if killer:
+				var hunter := killer.global_position + Vector3(0, 0.9, 0)
+				hunter += (tv._camera.global_position - hunter).normalized() * 0.5  # in front of it
+				_light_flash(hunter, color, 2.6, 1.6, 0.1 * k, slashes, 0.4 * k)
+			for i in 4:
+				_after(i * 0.13 * k, func() -> void:
+					_light_flash(lit, color, 3.0, 2.0, 0.03 * k, 0.03 * k, 0.12 * k))
+			_after(slashes, func() -> void:
+				_light_throb(lit, color, WOUND_SECONDS * k))
+			_after((SLASHES_SECONDS + WOUND_SECONDS) * k, func() -> void:
+				_light_flash(lit, color, 4.0, 2.2, 0.05 * k, TEAR_SECONDS * k, 0.05 * k))
+			_after((SLASHES_SECONDS + WOUND_SECONDS + TEAR_SECONDS) * k, func() -> void:
+				_light_flash(lit, color, 9.0, 4.5, 0.03 * k, 0.1 * k, 0.9 * k))
 			for i in 4:
 				_after(i * 0.13 * k, func() -> void:
 					_slash(to + Vector3(randf_range(-0.08, 0.08), randf_range(-0.1, 0.1), 0.05),
@@ -252,6 +269,38 @@ func _slash(at: Vector3, color: Color, size: float, angle: float, k: float) -> v
 	t.tween_property(q, "scale", Vector3.ONE * 1.2, 0.12 * k)
 	t.tween_property(q, "transparency", 1.0, 0.3 * k)
 	t.tween_callback(q.queue_free)
+
+
+## A coloured light at `at` that brightens to `energy` in `rise`, stays for `hold`, dies away
+## in `fall` and is removed.
+func _light_flash(at: Vector3, color: Color, energy: float, light_range: float, rise: float,
+		hold: float, fall: float) -> void:
+	var l := _new_light(at, color, light_range)
+	var t := l.create_tween()
+	t.tween_property(l, "light_energy", energy, maxf(rise, 0.01))
+	t.tween_interval(maxf(hold, 0.0))
+	t.tween_property(l, "light_energy", 0.0, maxf(fall, 0.01))
+	t.tween_callback(l.queue_free)
+
+
+## A light that throbs for `duration` (Soul Reap's wounds, while the body shudders).
+func _light_throb(at: Vector3, color: Color, duration: float) -> void:
+	var l := _new_light(at, color, 1.8)
+	var t := l.create_tween()
+	for n in maxi(1, int(duration / 0.08)):  # in step with the wounds' glow (Character3D.tremble)
+		t.tween_property(l, "light_energy", 2.6 if n % 2 == 0 else 0.9, 0.08)
+	t.tween_callback(l.queue_free)
+
+
+func _new_light(at: Vector3, color: Color, light_range: float) -> OmniLight3D:
+	var l := OmniLight3D.new()
+	l.position = at
+	l.light_color = color
+	l.light_energy = 0.0
+	l.omni_range = light_range
+	l.shadow_enabled = false
+	tv.viewport.add_child(l)
+	return l
 
 
 func _burst(at: Vector3, color: Color, size: float, duration: float) -> void:

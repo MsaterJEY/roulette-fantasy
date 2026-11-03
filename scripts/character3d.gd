@@ -34,6 +34,7 @@ const CHARRED := Color(0.03, 0.025, 0.025)  # burnt right through
 const TURN_SHARE := 0.55  # how far an attacker turns towards its target
 const WOUND_SHORT := 0.12  # Soul Reap wound length while the body shudders...
 const WOUND_LONG := 0.46  # ...and once it tears open
+const WOUND_GLOW := Color(1.0, 0.12, 0.14, 0.6)
 ## Draws one half of a cut body: everything on the wrong side of the cut plane is skipped.
 ## Where you would see into the hollow inside, the cut is capped instead: each inside pixel
 ## is drawn as the point where its view ray meets the cut plane, in a blocky charcoal pattern
@@ -116,6 +117,8 @@ var _grip_r: Node3D
 var _pose: Tween  # the attack / finisher motion playing now
 var _rest_yaw := NAN  # the way it faces when not attacking (set on the first pose)
 var _wounds: Array[MeshInstance3D] = []  # Soul Reap slash marks
+var _wound_glow: Array[MeshInstance3D] = []  # the red glow round each
+var _glow_pulse: Array[Tween] = []  # its throbbing while the body shudders
 var _halves: Array[Node3D] = []  # after a cut: the two halves...
 var _half_mats: Array = []  # ...and each half's materials (their cut plane follows the half)
 
@@ -556,21 +559,53 @@ func slash_mark(i: int) -> void:
 	mark.rotation.z = [0.6, -0.6, 0.15, -0.9][i % 4]
 	mark.scale.x = WOUND_SHORT / WOUND_LONG
 	_wounds.append(mark)
+	# a soft red glow round the cut (added light, so it brightens what's behind it)
+	# (its own material, not in _mats: the modulate tint mustn't dim it)
+	var glow := MeshInstance3D.new()
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(WOUND_LONG * 1.2, 0.14, 0.004)
+	glow.mesh = mesh
+	glow.position = Vector3(0, 0, 0.004)
+	var m := StandardMaterial3D.new()
+	m.albedo_color = WOUND_GLOW
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	glow.material_override = m
+	glow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mark.add_child(glow)
+	_wound_glow.append(glow)
 
 
-## Soul Reap, just before the burst: every wound tears open to full length at once.
+## Soul Reap, just before the burst: every wound tears open to full length at once, white-hot
+## in the middle and glowing bright red round it.
 func open_wounds() -> void:
 	for w in _wounds:
 		w.scale = Vector3(1.0, 1.6, 1.0)
+		(w.material_override as StandardMaterial3D).albedo_color = Color("ffd0c8")
+	for p in _glow_pulse:
+		p.kill()
+	for g in _wound_glow:
+		g.scale = Vector3(1.0, 2.6, 1.0)
+		(g.material_override as StandardMaterial3D).albedo_color = Color(WOUND_GLOW, 1.0)
 
 
-## A shudder of `duration` seconds (between the last slash and the burst).
+## A shudder of `duration` seconds (between the last slash and the burst); the wounds' glow
+## throbs with it.
 func tremble(duration: float) -> void:
 	var t := _body.create_tween()
 	var steps := int(duration / 0.05)
 	for n in steps:
 		t.tween_property(_body, "position:x", randf_range(-0.015, 0.015), 0.05)
 	t.tween_property(_body, "position:x", 0.0, 0.05)
+	for g in _wound_glow:
+		var m: StandardMaterial3D = g.material_override
+		var p := g.create_tween()
+		_glow_pulse.append(p)
+		for n in maxi(1, int(duration / 0.08)):
+			var bright := n % 2 == 0
+			p.tween_property(m, "albedo_color:a", 1.0 if bright else WOUND_GLOW.a, 0.08)
+			p.parallel().tween_property(g, "scale:y", 2.3 if bright else 1.2, 0.08)
 
 
 ## Where the head is, now or (`slumped`) in the knocked-out pose.

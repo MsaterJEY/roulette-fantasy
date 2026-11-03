@@ -16,7 +16,8 @@ const SLOT_STEP := 150.0
 ## 5-6 players: narrower cards (no portrait) so the bar still fits the screen.
 const SLOT_SIZE_COMPACT := Vector2(128, 58)
 const SLOT_STEP_COMPACT := 132.0
-const BAR_CENTRE := 494.0
+const BAR_CENTRE := 480.0  # the middle of the screen
+const MARGIN := 16.0  # the gap at the left and right edges of the screen
 var _seat_count := 4
 
 var game: GameController
@@ -375,7 +376,7 @@ func _show_roll_result(p: PlayerData, dice: Array[int], gold: int, drawn: Array[
 ## Your gold, big, under your seat panel. Pops when the amount changes.
 func _build_gold_counter() -> void:
 	gold_panel = PanelContainer.new()
-	gold_panel.position = Vector2(16, 472)
+	gold_panel.position = Vector2(MARGIN, 479)  # level with the buttons (466-524)
 	gold_panel.custom_minimum_size = Vector2(140, 32)
 	gold_panel.size = Vector2(140, 32)
 	gold_panel.pivot_offset = gold_panel.size / 2
@@ -478,8 +479,8 @@ func _build_table() -> void:
 
 	var logo := Label.new()
 	logo.text = "Roulette Fantasy"
-	logo.position = Vector2(14, 8)
-	logo.add_theme_font_size_override("font_size", 24)
+	logo.position = Vector2(MARGIN, 22)  # level with the player cards
+	logo.add_theme_font_size_override("font_size", 20)
 	logo.add_theme_color_override("font_color", UiStyle.ACTIVE)
 	logo.add_theme_color_override("font_outline_color", Color("2a1408"))
 	logo.add_theme_constant_override("outline_size", 8)
@@ -511,8 +512,19 @@ func _build_table() -> void:
 	round_label.add_theme_font_size_override("font_size", 15)
 	round_label.add_theme_color_override("font_color", UiStyle.TEXT)
 	plate.add_child(round_label)
-	phase_label = _center_label(Vector2(330, 106), 12)
+	# whose turn, and the seconds left beside it, as one line centred under the plate
+	var turn_row := HBoxContainer.new()
+	turn_row.position = Vector2(300, 103)
+	turn_row.size = Vector2(360, 26)
+	turn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	turn_row.add_theme_constant_override("separation", 12)
+	turn_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(turn_row)
+	phase_label = _center_label(Vector2.ZERO, 12)
 	phase_label.add_theme_color_override("font_color", UiStyle.ACTIVE)
+	phase_label.reparent(turn_row)
+	phase_label.size = Vector2.ZERO
+	phase_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	showdown_plate = PanelContainer.new()
 	var sp := UiStyle.panel(Color(0.07, 0.04, 0.03, 0.82), Color("ff8a3c"), 1, 8)
 	sp.content_margin_top = 1
@@ -532,8 +544,6 @@ func _build_table() -> void:
 	add_child(turn_bar)
 
 	time_label = Label.new()
-	time_label.position = Vector2(560, 103)
-	time_label.size = Vector2(80, 26)
 	time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	time_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	time_label.tooltip_text = "เวลาที่เหลือ (วินาที.มิลลิวินาที)"
@@ -544,12 +554,12 @@ func _build_table() -> void:
 	time_label.add_theme_font_size_override("font_size", 14)
 	time_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
 	time_label.add_theme_constant_override("outline_size", 3)
-	add_child(time_label)
+	turn_row.add_child(time_label)
 
-	action_button = _brass_button(Vector2(800, 466), Vector2(148, 58))
+	action_button = _brass_button(Vector2(960 - MARGIN - 148, 466), Vector2(148, 58))
 	action_button.add_theme_font_size_override("font_size", 19)
 	action_button.pressed.connect(func() -> void: game.advance())
-	shop_button = _brass_button(Vector2(680, 466), Vector2(112, 58))
+	shop_button = _brass_button(Vector2(960 - MARGIN - 148 - 8 - 112, 466), Vector2(112, 58))
 	shop_button.add_theme_font_size_override("font_size", 19)
 	shop_button.text = "ร้านค้า"
 	shop_button.pressed.connect(func() -> void:
@@ -562,7 +572,7 @@ func _build_table() -> void:
 
 ## Top right: a dice button; hover (or click to keep it open) shows how a roll scores.
 func _build_dice_tip() -> void:
-	var b := _brass_button(Vector2(902, 12), Vector2(44, 44))
+	var b := _brass_button(Vector2(960 - MARGIN - 44, 17), Vector2(44, 44))  # level with the player cards
 	b.icon = Icons.get_icon("dice")
 	b.add_theme_constant_override("icon_max_width", 24)
 	b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -581,7 +591,7 @@ func _build_dice_tip() -> void:
 	var style := UiStyle.panel(Color(UiStyle.WOOD_DARK, 0.97), UiStyle.BRASS, 2, 10)
 	style.set_content_margin_all(12)
 	dice_tip.add_theme_stylebox_override("panel", style)
-	dice_tip.position = Vector2(600, 62)
+	dice_tip.position = Vector2(960 - MARGIN - 346, 66)
 	dice_tip.custom_minimum_size = Vector2(346, 0)
 	dice_tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	dice_tip.z_index = 95
@@ -667,17 +677,19 @@ const CARD_STEP := 50.0  # cards overlap like a hand of cards; only the left str
 const CARD_LIFT := 22.0  # how far the card under the mouse rises
 const FAN_ANGLE := 0.07  # radians between neighbouring cards
 const HAND_BOX := Rect2(275, 400, 410, 132)
+const RAIL_ENDS: Array[float] = [300.0, 660.0]  # mirror images about the middle (480)
 
 
 func _build_hand() -> void:
-	# a brass rail from your gold to the buttons, behind the hand, with a diamond at each end
+	# a brass rail behind the hand, centred on it, between your gold and the buttons, with a
+	# diamond at each end
 	var rail := ColorRect.new()
 	rail.color = Color(UiStyle.BRASS, 0.7)
-	rail.position = Vector2(170, 494)
-	rail.size = Vector2(506, 2)
+	rail.position = Vector2(RAIL_ENDS[0], 494)
+	rail.size = Vector2(RAIL_ENDS[1] - RAIL_ENDS[0], 2)
 	rail.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(rail)
-	for x: float in [170.0, 676.0]:
+	for x: float in RAIL_ENDS:
 		var gem := ColorRect.new()
 		gem.color = UiStyle.BRASS
 		gem.size = Vector2(8, 8)
@@ -1123,7 +1135,7 @@ func _on_game_over(winner: int) -> void:
 
 func _build_minigame_and_result() -> void:
 	minigame_panel = MinigamePanel.new()
-	minigame_panel.position = Vector2(80, 30)  # over the table; the log stays visible
+	minigame_panel.position = Vector2(140, 30)  # centred over the table; clear of the open log
 	minigame_panel.size = Vector2(680, 420)
 	add_child(minigame_panel)
 	minigame_panel.setup(game)
@@ -1160,7 +1172,7 @@ func _build_defense_panel() -> void:
 
 func _build_shop() -> void:
 	shop_panel = PanelContainer.new()
-	shop_panel.position = Vector2(150, 112)  # under the top bar
+	shop_panel.position = Vector2(240, 112)  # under the top bar, centred (_fill_shop)
 	shop_panel.custom_minimum_size = Vector2(480, 0)
 	shop_panel.add_theme_stylebox_override("panel", UiStyle.panel(UiStyle.WOOD_DARK, UiStyle.BRASS, 3, 10))
 	shop_panel.visible = false
@@ -1268,12 +1280,14 @@ func _fill_shop() -> void:
 		shop_panel.visible = false
 		_cancel_replace())
 	shop_list.add_child(close)
+	shop_panel.reset_size()
+	shop_panel.position.x = 480 - shop_panel.size.x / 2
 
 
 func _build_turn_toast() -> void:
 	turn_toast = Label.new()
 	turn_toast.text = "เทิร์นของคุณ!"
-	turn_toast.position = Vector2(80, 150)
+	turn_toast.position = Vector2(130, 150)  # 700 wide: centred
 	turn_toast.size = Vector2(700, 70)
 	turn_toast.pivot_offset = turn_toast.size / 2
 	turn_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1303,7 +1317,7 @@ func _on_turn_started(_seat: int) -> void:
 
 func _build_move_label() -> void:
 	move_label = Label.new()
-	move_label.position = Vector2(80, 128)
+	move_label.position = Vector2(130, 128)
 	move_label.size = Vector2(700, 50)
 	move_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	move_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -1316,7 +1330,7 @@ func _build_move_label() -> void:
 
 func _build_banner() -> void:
 	banner = Label.new()
-	banner.position = Vector2(80, 180)
+	banner.position = Vector2(130, 180)
 	banner.size = Vector2(700, 60)
 	banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	banner.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -1330,7 +1344,7 @@ func _build_banner() -> void:
 
 func _build_log() -> void:
 	log_panel = PanelContainer.new()
-	log_panel.position = Vector2(818, 80)
+	log_panel.position = Vector2(960 - MARGIN - 138, 80)
 	log_panel.custom_minimum_size = Vector2(138, 300)
 	log_panel.add_theme_stylebox_override("panel", UiStyle.panel(Color(UiStyle.WOOD_DARK, 0.9), UiStyle.BRASS))
 	add_child(log_panel)
@@ -1366,7 +1380,7 @@ func _build_log() -> void:
 	log_tab = Button.new()
 	log_tab.text = "«  ประวัติการเล่น"
 	log_tab.size = Vector2(150, 30)
-	log_tab.position = Vector2(930, 240)
+	log_tab.position = Vector2(930, 305)  # level with the middle of the open log
 	log_tab.rotation = -PI / 2
 	log_tab.add_theme_font_size_override("font_size", 13)
 	log_tab.add_theme_color_override("font_color", UiStyle.BRASS)

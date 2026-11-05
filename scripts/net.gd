@@ -13,6 +13,7 @@ extends Node
 signal lobby_changed
 signal chat(bbcode: String)
 signal rooms_listed(rooms: Array)
+signal room_stats(online: int, playing: int)  # who's around, from the same reply
 signal joined  # guest: in the room
 signal failed(message: String)  # could not create / join, or the connection was lost
 signal game_ready  # host: every guest has the table open; start the game
@@ -38,6 +39,9 @@ const TABLE_SCENE := "res://main.tscn"
 const MENU_SCENE := "res://menu.tscn"
 const ICE := {"iceServers": [{"urls": ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"]}]}
 const POLL_SECONDS := 1.0
+const ALIVE_MS := 30000  # the room API forgets a room after 90 seconds
+var _who := ""
+var _alive_at := 0
 const CONNECT_TIMEOUT := 20.0
 const LOAD_TIMEOUT := 15.0  # host: start without a guest whose table hasn't opened by then
 const SNAPSHOT_SECONDS := 0.25  # host: the clocks are re-sent this often
@@ -167,7 +171,12 @@ func list_rooms() -> void:
 	if _enet():
 		rooms_listed.emit([])
 		return
-	_api({"action": "list"}, func(r: Dictionary) -> void: rooms_listed.emit(r.get("rooms", [])))
+	if _who == "":
+		_who = str(randi())  # this browser, so asking again doesn't count it twice
+	_api({"action": "list", "who": _who}, func(r: Dictionary) -> void:
+		rooms_listed.emit(r.get("rooms", []))
+		if r.has("online"):
+			room_stats.emit(int(r["online"]), int(r.get("playing", 0))))
 
 
 # ---------- hosting ----------
@@ -526,6 +535,11 @@ func _process(delta: float) -> void:
 		if _poll_left <= 0.0:
 			_poll_left = POLL_SECONDS
 			_poll()
+	if in_game and is_host() and not _enet():  # polling is off in a game: the room stays counted
+		var now := Time.get_ticks_msec()  # the real clock: a hidden tab's frames run slow
+		if now >= _alive_at:
+			_alive_at = now + ALIVE_MS
+			_api({"action": "update", "code": code, "status": "playing", "count": _human_count()})
 	if _connect_left > 0.0:
 		_connect_left -= delta
 		if _connect_left <= 0.0:

@@ -43,6 +43,7 @@ const AUTO_START_SECONDS := 3.0
 const FIND_REFRESH_SECONDS := 3.0
 var _find_refresh := 0.0
 var _room_rows: VBoxContainer
+var _room_stats: Label
 var _room_empty: Label
 var _ready_btn: Button
 var _start_btn: Button
@@ -85,6 +86,7 @@ func _ready() -> void:
 	NetPlay.node().lobby_changed.connect(_render_lobby)
 	NetPlay.node().chat.connect(func(b: String) -> void: _chat(b))
 	NetPlay.node().rooms_listed.connect(_fill_rooms)
+	NetPlay.node().room_stats.connect(_show_room_stats)
 	NetPlay.node().joined.connect(func() -> void:
 		toast("เข้าห้องแล้ว")
 		show_screen("lobby"))
@@ -229,6 +231,14 @@ func _build_find() -> Control:
 	go.pressed.connect(show_screen.bind("create"))
 	s.add_child(go)
 	_back(s)
+	_room_stats = MenuUi.label("", 14, MenuUi.GOLD)  # who's around: online play only
+	_room_stats.position = Vector2(0, 488)
+	_room_stats.size = Vector2(W, 34)
+	_room_stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_room_stats.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_room_stats.add_theme_color_override("font_outline_color", Color("2a1408"))
+	_room_stats.add_theme_constant_override("outline_size", 5)
+	s.add_child(_room_stats)
 	return s
 
 
@@ -278,6 +288,10 @@ func _build_join() -> Control:
 	box.add_child(note)
 	_back(s)
 	return s
+
+
+func _show_room_stats(online: int, playing: int) -> void:
+	_room_stats.text = "ออนไลน์ %d คน · เล่นอยู่ %d ห้อง" % [online, playing]
 
 
 ## The open rooms from the room API, each with a Join button.

@@ -36,6 +36,9 @@ const run = ([cmd, ...a]) => {
     case "RPUSH": { const l = live(a[0])?.v || []; l.push(...a.slice(1)); store.set(a[0], { v: l, exp: live(a[0])?.exp || 0 }); return l.length; }
     case "EXPIRE": { const e = live(a[0]); if (e) e.exp = Date.now() + Number(a[1]) * 1000; return 1; }
     case "LRANGE": return [...(live(a[0])?.v || [])];
+    case "ZADD": { const z = live(a[0])?.v || new Map(); z.set(a[2], Number(a[1])); store.set(a[0], { v: z, exp: live(a[0])?.exp || 0 }); return 1; }
+    case "ZREMRANGEBYSCORE": { const z = live(a[0])?.v; if (z) for (const [m, s] of z) if (s >= Number(a[1]) && s <= Number(a[2])) z.delete(m); return 1; }
+    case "ZCARD": return live(a[0])?.v.size || 0;
     case "DEL": a.forEach((k) => store.delete(k)); return 1;
   }
   throw new Error("unsupported " + cmd);

@@ -6,7 +6,8 @@
 //
 // POST /api/room with JSON {action, ...}:
 //   create {name, max, rings, preset, password}  -> {code}
-//   list                                          -> {rooms: [{code, name, count, max, rings, locked}]}
+//   list   {who}                                  -> {rooms: [{code, name, count, max, rings, locked}], online, playing}
+//          (online: people in rooms + browsers looking at the room list; playing: rooms in a game)
 //   join   {code, password}                       -> {peer}  (or {error: not_found|full|playing|password})
 //   send   {code, to, from, data}                 -> {ok}
 //   poll   {code, peer, count?}                   -> {messages: [{from, data}]}  (host: count keeps the room listed)
@@ -17,6 +18,7 @@ const URL_ = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
 const TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 const ROOM_TTL = 90; // seconds a room stays listed without word from its host
 const MSG_TTL = 120;
+const SEEN_SECONDS = 15; // a browser counts as looking at the list this long after asking for it
 
 async function redis(...commands) {
   const res = await fetch(`${URL_}/pipeline`, {
@@ -67,20 +69,28 @@ const actions = {
     return { error: "busy" };
   },
 
-  async list() {
-    const [codes] = await redis(["SMEMBERS", "rf:rooms"]);
-    if (!codes || codes.length === 0) return { rooms: [] };
+  async list(b) {
+    const now = Date.now();
+    const seen = [["ZREMRANGEBYSCORE", "rf:seen", 0, now - SEEN_SECONDS * 1000]];
+    if (typeof b.who === "string" && b.who) seen.push(["ZADD", "rf:seen", now, b.who.slice(0, 16)]);
+    const looking = (await redis(...seen, ["ZCARD", "rf:seen"], ["SMEMBERS", "rf:rooms"], ["EXPIRE", "rf:seen", 60])).slice(-3);
+    const codes = looking[1];
+    if (!codes || codes.length === 0) return { rooms: [], online: looking[0], playing: 0 };
     const [raws] = await redis(["MGET", ...codes.map(roomKey)]);
     const rooms = [];
     const gone = [];
+    let inRooms = 0;
+    let playing = 0;
     codes.forEach((code, i) => {
       if (!raws[i]) return gone.push(code);
       const r = JSON.parse(raws[i]);
+      inRooms += r.count;
+      if (r.status === "playing") playing += 1;
       if (r.status === "open")
         rooms.push({ code, name: r.name, count: r.count, max: r.max, rings: r.rings, locked: r.password !== "" });
     });
     if (gone.length) await redis(["SREM", "rf:rooms", ...gone]);
-    return { rooms };
+    return { rooms, online: inRooms + looking[0], playing };
   },
 
   async join(b) {

@@ -4,8 +4,10 @@ extends RefCounted
 ## (GameController.remote). The table is turned for each guest so that they sit at seat 0,
 ## as you always do on your own screen: host seat s is guest seat (s - viewer) mod n. Other
 ## players' hands travel as face-down cards (HIDDEN), and what they drew or bought is not
-## named.
+## named. A spectator (viewer WATCHER) gets an extra, empty seat 0 of their own, out of the
+## game, and every player one place on: to the table they're just someone knocked out.
 
+const WATCHER := -1
 const HIDDEN := {"id": "hidden", "name": "?", "type": "hidden", "phase": "passive", "target": "none",
 	"price": 0, "desc": ""}
 
@@ -26,10 +28,14 @@ const EVENT_SEATS := {
 
 
 static func to_view(seat: int, viewer: int, n: int) -> int:
+	if viewer == WATCHER:
+		return seat if seat < 0 else seat + 1
 	return seat if seat < 0 else posmod(seat - viewer, n)
 
 
 static func from_view(seat: int, viewer: int, n: int) -> int:
+	if viewer == WATCHER:
+		return seat
 	return seat if seat < 0 else posmod(seat + viewer, n)
 
 
@@ -46,6 +52,9 @@ static func snapshot(g: GameController, viewer: int) -> Dictionary:
 		players.append({"name": p.display_name, "bot": p.is_bot, "character": p.character, "hp": p.hp,
 			"gold": p.gold, "shards": p.shards, "rings": p.rings, "hand": hand, "alive": p.alive,
 			"kills": p.kills, "damage": p.damage, "helps": p.helps, "statuses": p.statuses.duplicate()})
+	if viewer == WATCHER:
+		players.push_front({"name": "ผู้ชม", "bot": false, "character": "", "hp": 0, "gold": 0, "shards": 0,
+			"rings": 0, "hand": [], "alive": false, "kills": 0, "damage": 0, "helps": 0, "statuses": {}})
 	var pending := {}
 	if not g.pending_attack.is_empty():
 		pending = {"attacker": to_view(g.pending_attack["attacker"], viewer, n),
@@ -68,7 +77,7 @@ static func snapshot(g: GameController, viewer: int) -> Dictionary:
 			"round": m.round_no, "turn": m.turn, "time": m.time_left, "answers": answers, "scores": scores,
 			"used": m.used}
 	return {
-		"players": players,
+		"players": players, "watching": viewer == WATCHER,
 		"order": g.order.map(func(s: int) -> int: return to_view(s, viewer, n)),
 		"round": g.round_no, "turn": g.turn_index, "step": g.step, "step_seconds": g.step_seconds,
 		"time": g.time_left, "speed": g.speed, "finished": g.finished, "rings_to_win": g.rings_to_win,
@@ -103,6 +112,7 @@ static func apply(g: GameController, d: Dictionary) -> void:
 		p.damage = e["damage"]
 		p.helps = e["helps"]
 		p.statuses = e["statuses"]
+	g.watching = d["watching"]
 	g.order.assign(d["order"])
 	g.round_no = d["round"]
 	g.turn_index = d["turn"]

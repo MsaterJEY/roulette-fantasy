@@ -87,6 +87,7 @@ var step: Step = Step.ROLL
 var step_seconds := STEP_SECONDS  # per phase; the room setting (GameConfig.turn_seconds)
 var time_left := STEP_SECONDS
 var autoplay := false  # the human seat is played by the bot logic (tests)
+var watching := false  # online spectator: seat 0 is an empty place, out of the game
 var speed := 1.0
 var rng := RandomNumberGenerator.new()
 var finished := false

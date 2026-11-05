@@ -26,6 +26,7 @@ const TURN_GAP := 6.0
 const BAR_CENTRE := 480.0  # the middle of the screen
 const MARGIN := 16.0  # the gap at the left and right edges of the screen
 var _seat_count := 4
+var _bar_count := 4  # player cards in the top bar (a spectator has none)
 var _on_turn_seat := -1  # whose card is big at the front of the bar (-1: the opening, all alike)
 
 var game: GameController
@@ -108,8 +109,9 @@ func _ready() -> void:
 	game.card_played.connect(_on_card_played)
 
 	GameConfig.load_settings()
-	_seat_count = clampi(GameConfig.players, 2, 6)
-	SeatPanel.compact = _seat_count > 4
+	_seat_count = clampi(GameConfig.players, 2, 7)  # 7: six players and a spectator's own place
+	_bar_count = _seat_count - (1 if NetPlay.node().watching else 0)
+	SeatPanel.compact = _bar_count > 4
 	_build_table()
 	_build_hand()
 	_build_log()
@@ -174,11 +176,14 @@ func _start(my_id: String) -> void:
 	_build_gold_counter()
 	_build_dice_tip()
 	_build_minigame_and_result()
+	if game.watching:
+		_build_watching()
 	_hide_loading()
 	# connected after the UI exists; the first turn starts once the opening roll-off is shown
 	game.turn_started.connect(_on_turn_started)
 	game.state_changed.connect(refresh_all)
-	_show_opening(game.opening_rolls)
+	if not game.watching:  # a spectator comes in late: no roll-off to show
+		_show_opening(game.opening_rolls)
 	refresh_all()
 
 
@@ -215,7 +220,7 @@ func _show_opening(rolls: Array[Dictionary]) -> void:
 func _slot_rect(i: int) -> Rect2:
 	var size := SLOT_SIZE_COMPACT if SeatPanel.compact else SLOT_SIZE
 	var step := SLOT_STEP_COMPACT if SeatPanel.compact else SLOT_STEP
-	var left := BAR_CENTRE - (_seat_count * step) / 2.0 + (step - size.x) / 2.0
+	var left := BAR_CENTRE - (_bar_count * step) / 2.0 + (step - size.x) / 2.0
 	return Rect2(Vector2(left + i * step, 10), size)
 
 
@@ -223,7 +228,7 @@ func _slot_rect(i: int) -> Rect2:
 func _turn_rect(d: int) -> Rect2:
 	var big := TURN_BIG_COMPACT if SeatPanel.compact else TURN_BIG
 	var slim := TURN_SLIM_COMPACT if SeatPanel.compact else TURN_SLIM
-	var left := BAR_CENTRE - (big.x + (_seat_count - 1) * (slim.x + TURN_GAP)) / 2.0
+	var left := BAR_CENTRE - (big.x + (_bar_count - 1) * (slim.x + TURN_GAP)) / 2.0
 	if d == 0:
 		return Rect2(Vector2(left, 10), big)
 	var y := 10 + (big.y - slim.y) / 2.0  # level with the big card's middle
@@ -237,7 +242,10 @@ func _place_cards(animated: bool) -> void:
 	_on_turn_seat = game.order[game.turn_index] if playing else -1
 	for seat in seats.size():
 		var slot := game.order.find(seat)
-		var to := _turn_rect(posmod(slot - game.turn_index, _seat_count)) if playing else _slot_rect(slot)
+		if slot < 0:  # a spectator's own place
+			seats[seat].visible = false
+			continue
+		var to := _turn_rect(posmod(slot - game.turn_index, _bar_count)) if playing else _slot_rect(slot)
 		var card := seats[seat]
 		var shape := ("big" if seat == _on_turn_seat else "slim") if playing else "normal"
 		if shape != "big":
@@ -576,6 +584,36 @@ func _hide_loading() -> void:
 	var t := bg.create_tween()
 	t.tween_property(bg, "modulate:a", 0.0, 0.35)
 	t.tween_callback(cover.queue_free)
+
+
+## A spectator's screen: no hand or money, a plate saying so and a way out. The bar is set
+## here too: a game joined late has had its opening.
+func _build_watching() -> void:
+	gold_panel.visible = false
+	hand_box.visible = false
+	_place_cards(false)
+	var plate := PanelContainer.new()
+	var style := UiStyle.panel(Color(0.08, 0.06, 0.05, 0.85), UiStyle.BRASS.darkened(0.2), 1, 14)
+	style.content_margin_left = 18
+	style.content_margin_right = 18
+	style.content_margin_top = 4
+	style.content_margin_bottom = 4
+	plate.add_theme_stylebox_override("panel", style)
+	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(plate)
+	var text := Label.new()
+	text.text = "กำลังชมเกม · ไม่เห็นการ์ดในมือใคร"
+	text.add_theme_font_size_override("font_size", 14)
+	text.add_theme_color_override("font_color", UiStyle.TEXT)
+	plate.add_child(text)
+	plate.resized.connect(func() -> void: plate.position = Vector2(BAR_CENTRE - plate.size.x / 2, 492))
+	var out := _brass_button(Vector2(960 - MARGIN - 148, 466), Vector2(148, 58))
+	out.add_theme_font_size_override("font_size", 19)
+	out.text = "ออกจากการชม"
+	out.pressed.connect(func() -> void:
+		NetPlay.node().leave()
+		MainMenu.start_screen = "find"
+		get_tree().change_scene_to_file(NetPlay.MENU_SCENE))
 
 
 # ---------- building the screen ----------
@@ -1284,7 +1322,7 @@ func _on_game_over(winner: int) -> void:
 	t.tween_callback(func() -> void:
 		banner.text = "%s ชนะ!" % game.players[winner].display_name
 		banner.visible = true
-		sfx.play("win" if winner == 0 else "lose"))
+		sfx.play("win" if winner == 0 or game.watching else "lose"))
 	t.tween_interval(RESULT_WAIT_SECONDS / (game.speed if game.autoplay else 1.0))  # full wait, even spectating
 	t.tween_callback(func() -> void:
 		banner.visible = false

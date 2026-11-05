@@ -22,7 +22,8 @@ const SEAT_POS := [Vector3(0, 0, 1.9), Vector3(-1.5, 0, -0.4), Vector3(0, 0, -1.
 const LAYOUTS := {2: [0, 2], 3: [0, 1, 3], 4: [0, 1, 2, 3]}
 ## 5 or 6 players: the bots sit on an arc round the far side, left to right, at these
 ## angles (degrees round the table from your seat) and BOT_RING metres from the middle.
-const ARC_LAYOUTS := {5: [-108.0, -152.0, 152.0, 108.0], 6: [-106.0, -143.0, 180.0, 143.0, 106.0]}
+const ARC_LAYOUTS := {5: [-108.0, -152.0, 152.0, 108.0], 6: [-106.0, -143.0, 180.0, 143.0, 106.0],
+	7: [-104.0, -134.0, -164.0, 164.0, 134.0, 104.0]}  # 7: six players and a spectator
 const BOT_RING := 1.55
 const CHARACTER_HEIGHT := 0.9  # metres from the seat to the top of the head
 const CHARACTER_SCALE := 1.15
@@ -79,7 +80,7 @@ func _ready() -> void:
 ## 2-6 seats, placed by LAYOUTS / ARC_LAYOUTS. Builds their chairs, lights and effect markers too.
 func setup_characters(ids: Array) -> void:
 	seat_pos.clear()
-	var n := clampi(ids.size(), 2, 6)
+	var n := clampi(ids.size(), 2, 7)
 	if n <= 4:
 		for place: int in LAYOUTS[n]:
 			seat_pos.append(SEAT_POS[place])

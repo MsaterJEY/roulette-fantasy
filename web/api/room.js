@@ -6,11 +6,12 @@
 //
 // POST /api/room with JSON {action, ...}:
 //   create {name, max, rings, preset, password}  -> {code}
-//   list   {who}                                  -> {rooms: [{code, name, count, max, rings, locked}], online, playing}
+//   list   {who}                                  -> {rooms: [{code, name, count, max, rings, locked, playing}], online, playing}
 //          (online: people in rooms + browsers looking at the room list; playing: rooms in a game)
-//   join   {code, password}                       -> {peer}  (or {error: not_found|full|playing|password})
+//   join   {code, password, watch?}               -> {peer}  (or {error: not_found|full|playing|password|over})
+//          (watch: as a spectator of the game in progress)
 //   send   {code, to, from, data}                 -> {ok}
-//   poll   {code, peer, count?}                   -> {messages: [{from, data}]}  (host: count keeps the room listed)
+//   poll   {code, peer, count?, watchers?}        -> {messages: [{from, data}]}  (host: count keeps the room listed)
 //   update {code, status, count}                  -> {ok}
 //   close  {code}                                 -> {ok}
 
@@ -84,20 +85,25 @@ const actions = {
     codes.forEach((code, i) => {
       if (!raws[i]) return gone.push(code);
       const r = JSON.parse(raws[i]);
-      inRooms += r.count;
+      inRooms += r.count + (r.watchers || 0);
       if (r.status === "playing") playing += 1;
-      if (r.status === "open")
-        rooms.push({ code, name: r.name, count: r.count, max: r.max, rings: r.rings, locked: r.password !== "" });
+      rooms.push({ code, name: r.name, count: r.count, max: r.max, rings: r.rings, locked: r.password !== "",
+        playing: r.status === "playing" });
     });
     if (gone.length) await redis(["SREM", "rf:rooms", ...gone]);
+    rooms.sort((a, b) => a.playing - b.playing); // rooms you can join first
     return { rooms, online: inRooms + looking[0], playing };
   },
 
   async join(b) {
     const room = await getRoom(b.code);
     if (!room) return { error: "not_found" };
-    if (room.status !== "open") return { error: "playing" };
-    if (room.count >= room.max) return { error: "full" };
+    if (b.watch) {
+      if (room.status !== "playing") return { error: "over" };
+    } else {
+      if (room.status !== "open") return { error: "playing" };
+      if (room.count >= room.max) return { error: "full" };
+    }
     if (room.password && room.password !== String(b.password || "")) return { error: "password" };
     const peer = room.next_peer;
     room.next_peer += 1;
@@ -122,6 +128,7 @@ const actions = {
       const room = await getRoom(b.code);
       if (!room) return { error: "not_found", messages };
       if (b.count !== undefined) room.count = Number(b.count);
+      if (b.watchers !== undefined) room.watchers = Number(b.watchers);
       await saveRoom(room);
     }
     return { messages };

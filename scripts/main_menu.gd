@@ -310,8 +310,9 @@ func _fill_rooms(rooms: Array) -> void:
 			l.custom_minimum_size = Vector2(c[1], 0)
 			l.clip_text = true
 			row.add_child(l)
-		var go := MenuUi.small_button("  เข้าร่วม  ", "", 100)
-		go.pressed.connect(_join.bind(str(r.get("code", ""))))
+		var watch: bool = r.get("playing", false)
+		var go := MenuUi.small_button("  ชมเกม  " if watch else "  เข้าร่วม  ", "", 100)
+		go.pressed.connect(_join.bind(str(r.get("code", "")), "", watch))
 		row.add_child(go)
 		_room_rows.add_child(row)
 	if not NetPlay.node().available():
@@ -326,7 +327,7 @@ func _fill_rooms(rooms: Array) -> void:
 
 
 ## Join room `room_code` (asking for its password if it has one).
-func _join(room_code: String, password := "") -> void:
+func _join(room_code: String, password := "", watch := false) -> void:
 	if not NetPlay.node().available():
 		toast("เล่นออนไลน์ได้บนเว็บของเกม")
 		return
@@ -334,15 +335,15 @@ func _join(room_code: String, password := "") -> void:
 	NetPlay.node().seats.clear()
 	var on_fail := func(why: String) -> void:
 		if why == NetPlay.WRONG_PASSWORD or why == NetPlay.NEED_PASSWORD:
-			_ask_password(room_code, why == NetPlay.WRONG_PASSWORD and password != "")
+			_ask_password(room_code, why == NetPlay.WRONG_PASSWORD and password != "", watch)
 	NetPlay.node().failed.connect(on_fail, CONNECT_ONE_SHOT)
 	NetPlay.node().joined.connect(func() -> void:
 		if NetPlay.node().failed.is_connected(on_fail):
 			NetPlay.node().failed.disconnect(on_fail), CONNECT_ONE_SHOT)
-	NetPlay.node().join(room_code, password)
+	NetPlay.node().join(room_code, password, watch)
 
 
-func _ask_password(room_code: String, wrong: bool) -> void:
+func _ask_password(room_code: String, wrong: bool, watch := false) -> void:
 	var box := _open_modal("รหัสผ่านห้อง", Vector2(360, 200))
 	if wrong:
 		box.add_child(MenuUi.label("รหัสไม่ถูกต้อง ลองใหม่", 13, Color("ff8a7a")))
@@ -359,7 +360,7 @@ func _ask_password(room_code: String, wrong: bool) -> void:
 	ok.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	ok.pressed.connect(func() -> void:
 		_close_modal()
-		_join(room_code, pw.text))
+		_join(room_code, pw.text, watch))
 	pw.text_submitted.connect(func(_t: String) -> void: ok.pressed.emit())
 	box.add_child(ok)
 	pw.grab_focus.call_deferred()
@@ -1070,6 +1071,8 @@ const HOWTO := [
 ช่องเลือดที่ถูกตัดออกจะเป็นสีดำ"],
 	["10_result", "ชนะ!", "สะสมแหวนครบตามที่ตั้งห้องไว้ หรือเป็นคนสุดท้ายที่รอด
 จบเกมแล้วดูอันดับ คะแนน และเล่นต่อได้ทันที"],
+	["11_watch", "ชมเกม", "ที่หน้าค้นหาห้อง กด \"ชมเกม\" ที่ห้องที่กำลังเล่นอยู่ ชมได้ห้องละ 4 คน
+ผู้ชมเห็นทุกอย่างบนโต๊ะ ยกเว้นการ์ดในมือ และเล่นไม่ได้"],
 ]
 
 

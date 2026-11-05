@@ -13,6 +13,7 @@ var _game: GameController
 var _winner := -1
 var _pages: Dictionary = {}  # tab -> Control
 var _tabs: Dictionary = {}  # tab -> Button
+var _again: Button
 var _narrow_cells := false  # 5-6 players: smaller score-table cells
 
 
@@ -56,6 +57,7 @@ func _ready() -> void:
 	right.add_theme_constant_override("separation", 10)
 	add_child(right)
 	var again := MenuUi.big_button("swords", "เล่นต่อ", "", true, 164)
+	_again = again
 	again.pressed.connect(func() -> void:
 		if NetPlay.node().online():  # the same room again: back to its lobby
 			if NetPlay.node().is_host():
@@ -80,6 +82,8 @@ func _ready() -> void:
 ## Winner first, then the living by rings, shards and HP, then those knocked out.
 static func standings(game: GameController, winner: int) -> Array[PlayerData]:
 	var out: Array[PlayerData] = game.players.duplicate()
+	if game.watching:
+		out.pop_front()  # the spectator's own place
 	out.sort_custom(func(a: PlayerData, b: PlayerData) -> bool:
 		if (a.seat == winner) != (b.seat == winner):
 			return a.seat == winner
@@ -117,6 +121,7 @@ func show_result(game: GameController, winner: int) -> void:
 		add_child(page)
 	_tabs["summary"].button_pressed = true
 	_show_page("summary")
+	_again.visible = not game.watching  # a spectator has no place at the table
 	move_to_front()
 	z_index = 100  # over the table HUD (turn-order badges and hand cards use z_index)
 	visible = true
@@ -194,7 +199,8 @@ func _build_summary() -> Control:
 	for i in ranked.size():
 		cards.add_child(_rank_card(ranked[i], i + 1, cw))
 
-	page.add_child(_my_stats())
+	if not _game.watching:
+		page.add_child(_my_stats())
 	return page
 
 

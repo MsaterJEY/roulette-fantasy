@@ -38,10 +38,10 @@ static func node() -> NetPlay:
 const TABLE_SCENE := "res://main.tscn"
 const MENU_SCENE := "res://menu.tscn"
 const ICE := {"iceServers": [{"urls": ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"]}]}
-const POLL_SECONDS := 1.0
-const ALIVE_MS := 30000  # the room API forgets a room after 90 seconds
+const POLL_MS := 1000
+const POLL_IN_GAME_MS := 3000  # host: spectators can still get in; keeps the room listed too
+const MAX_WATCHERS := 4
 var _who := ""
-var _alive_at := 0
 const CONNECT_TIMEOUT := 20.0
 const LOAD_TIMEOUT := 15.0  # host: start without a guest whose table hasn't opened by then
 const SNAPSHOT_SECONDS := 0.25  # host: the clocks are re-sent this often
@@ -54,10 +54,11 @@ var code := ""  # the room's 6-digit number
 var my_seat := 0  # your place in `seats`
 var seats: Array = []
 var in_game := false
+var watching := false  # you: a spectator, not a player
 
 var _peer: MultiplayerPeer
 var _rtc: Dictionary = {}  # peer id -> WebRTCPeerConnection
-var _poll_left := 0.0
+var _poll_at := 0  # by the real clock: a hidden tab's frames run slow
 var _polling := false
 var _connect_left := -1.0  # guest: seconds left to get through to the host
 var _lobby_gen := 0  # bumped when the lobby is rebuilt: old bot timers do nothing
@@ -69,10 +70,12 @@ var _snap_left := 0.0
 var _loaded: Dictionary = {}  # peer id -> true once their table is open
 var _load_left := -1.0
 var _logs: Dictionary = {}  # peer id -> log lines kept until the opening state is sent
+var _watchers: Dictionary = {}  # peer id -> name: spectators of the game in progress
 # guest, in game
 var _init_state: Dictionary = {}
 var _init_logs: Array = []
 var _was_joined := false  # guest: the first lobby from the host has come
+var _players_before := 0  # spectator: GameConfig.players to go back to (the table has an extra place)
 var _waiting: Dictionary = {}  # browser: request id -> its reply handler
 var _next_request := 0
 
@@ -213,7 +216,7 @@ func create_room(my_char: String, done: Callable) -> void:
 			code = r["code"]
 			GameConfig.room_code = code
 			_polling = true
-			_poll_left = 0.0
+			_poll_at = 0
 			done.call(""))
 
 
@@ -382,6 +385,9 @@ func back_to_lobby() -> void:
 			seats[i] = _bot_seat(i).merged({"char": seats[i]["char"]}, true)
 	if is_host():
 		_broadcast({"t": "to_lobby"})
+		for id: int in _watchers:
+			_send(id, {"t": "to_lobby"})
+		_watchers.clear()
 		_api({"action": "update", "code": code, "status": "open", "count": _human_count()})
 		_polling = true
 	_lobby_update()
@@ -404,9 +410,11 @@ func _human_count() -> int:
 
 # ---------- joining ----------
 
-## Join room `room_code`; `joined` or `failed` follows.
-func join(room_code: String, password := "") -> void:
+## Join room `room_code`; `joined` or `failed` follows. With `watch`, as a spectator of the
+## game in progress: the table opens by itself, or `failed`.
+func join(room_code: String, password := "", watch := false) -> void:
 	leave()
+	watching = watch
 	if _enet():
 		var enet := ENetMultiplayerPeer.new()
 		if enet.create_client("127.0.0.1", ENET_PORT) != OK:
@@ -417,8 +425,9 @@ func join(room_code: String, password := "") -> void:
 		code = room_code
 		_connect_left = CONNECT_TIMEOUT
 		return
-	_api({"action": "join", "code": room_code, "password": password}, func(r: Dictionary) -> void:
+	_api({"action": "join", "code": room_code, "password": password, "watch": watch}, func(r: Dictionary) -> void:
 		if r.has("error"):
+			watching = false
 			failed.emit(_join_error(str(r["error"])))
 			return
 		role = Role.GUEST
@@ -430,7 +439,7 @@ func join(room_code: String, password := "") -> void:
 		var conn := _new_connection(1)
 		_dbg("create_offer -> %d" % conn.create_offer())
 		_polling = true
-		_poll_left = 0.0
+		_poll_at = 0
 		_connect_left = CONNECT_TIMEOUT)
 
 
@@ -440,6 +449,10 @@ func _join_error(e: String) -> String:
 			return "ไม่พบห้องนี้ (เลขห้องผิด หรือห้องปิดไปแล้ว)"
 		"full":
 			return "ห้องเต็มแล้ว"
+		"watchers":
+			return "ผู้ชมเต็มแล้ว"
+		"over":
+			return "เกมนี้จบไปแล้ว"
 		"playing":
 			return "ห้องนี้กำลังเล่นอยู่"
 		"password":
@@ -453,6 +466,12 @@ func leave() -> void:
 		_api({"action": "close", "code": code})
 	_polling = false
 	_connect_left = -1.0
+	if watching and _players_before > 0:
+		GameConfig.players = _players_before
+		GameConfig.characters.clear()
+	watching = false
+	_players_before = 0
+	_watchers.clear()
 	for conn: WebRTCPeerConnection in _rtc.values():
 		conn.close()
 	_rtc.clear()
@@ -501,6 +520,7 @@ func _poll() -> void:
 	var body := {"action": "poll", "code": code, "peer": multiplayer.get_unique_id()}
 	if is_host():
 		body["count"] = _human_count()
+		body["watchers"] = _watchers.size()
 	_api(body, func(r: Dictionary) -> void:
 		if not online():
 			return
@@ -531,15 +551,10 @@ func _process(delta: float) -> void:
 	if not _waiting.is_empty():
 		_take_web_replies()
 	if _polling and not _enet():
-		_poll_left -= delta
-		if _poll_left <= 0.0:
-			_poll_left = POLL_SECONDS
+		var now := Time.get_ticks_msec()
+		if now >= _poll_at:
+			_poll_at = now + (POLL_IN_GAME_MS if in_game else POLL_MS)
 			_poll()
-	if in_game and is_host() and not _enet():  # polling is off in a game: the room stays counted
-		var now := Time.get_ticks_msec()  # the real clock: a hidden tab's frames run slow
-		if now >= _alive_at:
-			_alive_at = now + ALIVE_MS
-			_api({"action": "update", "code": code, "status": "playing", "count": _human_count()})
 	if _connect_left > 0.0:
 		_connect_left -= delta
 		if _connect_left <= 0.0:
@@ -554,8 +569,8 @@ func _process(delta: float) -> void:
 		if _dirty or _snap_left <= 0.0:
 			_dirty = false
 			_snap_left = SNAPSHOT_SECONDS
-			for id in _guest_ids():
-				_send(id, {"t": "snap", "s": GameSync.snapshot(_game, _seat_of(id))})
+			for id in _viewer_ids():
+				_send(id, {"t": "snap", "s": GameSync.snapshot(_game, _view_of(id))})
 
 
 # ---------- peers ----------
@@ -571,6 +586,9 @@ func _on_peer_connected(id: int) -> void:
 	if is_guest() and id == 1:
 		_connect_left = -1.0
 		_polling = false  # through: the API isn't needed any more
+		if watching:
+			_send(1, {"t": "watch", "name": GameConfig.player_name})
+			return
 		_send(1, {"t": "join", "name": GameConfig.player_name,
 			"char": GameConfig.characters[0] if not GameConfig.characters.is_empty() else ""})
 
@@ -583,6 +601,9 @@ func _on_peer_disconnected(id: int) -> void:
 	if not is_host():
 		return
 	_rtc.erase(id)
+	if _watchers.has(id):
+		_watchers.erase(id)
+		return
 	var i := _seat_of(id)
 	if i < 0:
 		return
@@ -602,7 +623,13 @@ func _on_peer_disconnected(id: int) -> void:
 	_lobby_update()
 
 
+## The connection is gone. Called from inside the network's own callbacks, which must finish
+## before the peer is closed (doing it there crashes the game): the rest happens just after.
 func _lost(why: String) -> void:
+	_lost_now.call_deferred(why)
+
+
+func _lost_now(why: String) -> void:
 	if not online():
 		return
 	var was_in_game := in_game
@@ -620,6 +647,19 @@ func _guest_ids() -> Array[int]:
 		if s["human"] and int(s["peer"]) > 1:
 			out.append(int(s["peer"]))
 	return out
+
+
+## Everyone who sees the game: the guests, then the spectators.
+func _viewer_ids() -> Array[int]:
+	var out := _guest_ids()
+	for id: int in _watchers:
+		out.append(id)
+	return out
+
+
+## The seat peer `id` sees the game from.
+func _view_of(id: int) -> int:
+	return GameSync.WATCHER if _watchers.has(id) else _seat_of(id)
 
 
 func _seat_of(id: int) -> int:
@@ -653,6 +693,15 @@ func _rx(d: Dictionary) -> void:
 func _host_rx(from: int, d: Dictionary) -> void:
 	var i := _seat_of(from)
 	match d.get("t"):
+		"watch":
+			if not in_game or _game == null:
+				_send(from, {"t": "refused", "why": "over"})
+			elif _watchers.size() >= MAX_WATCHERS:
+				_send(from, {"t": "refused", "why": "watchers"})
+			else:
+				_watchers[from] = str(d.get("name", "ผู้ชม")).left(GameConfig.NAME_MAX)
+				if _live:
+					_welcome_watcher(from)
 		"join":
 			if i >= 0 or in_game:
 				if in_game and i < 0:
@@ -682,6 +731,8 @@ func _host_rx(from: int, d: Dictionary) -> void:
 			if i >= 0:
 				_say_from(i, str(d.get("text", "")))
 		"loaded":
+			if _watchers.has(from):
+				return
 			_loaded[from] = true
 			if _guest_ids().all(func(g: int) -> bool: return _loaded.has(g)):
 				_load_left = -1.0
@@ -711,6 +762,21 @@ func _guest_rx(d: Dictionary) -> void:
 				joined.emit()
 		"refused":
 			_lost(_join_error(str(d.get("why", ""))))
+		"watching":  # the game so far: the table opens on it
+			var s: Dictionary = d["settings"]
+			GameConfig.rings_to_win = s["rings_to_win"]
+			GameConfig.minigames = s["minigames"]
+			GameConfig.turn_seconds = s["turn_seconds"]
+			_players_before = GameConfig.players
+			var list: Array = (d["s"] as Dictionary)["players"]
+			GameConfig.players = list.size()
+			GameConfig.names.assign(list.map(func(p: Dictionary) -> String: return p["name"]))
+			GameConfig.characters.assign(list.map(func(p: Dictionary) -> String: return p["character"]))
+			GameConfig.humans.assign(list.map(func(p: Dictionary) -> bool: return not p["bot"]))
+			in_game = true
+			_init_state = d["s"]
+			_init_logs = []
+			get_tree().change_scene_to_file(TABLE_SCENE)
 		"chat":
 			chat.emit(d["b"])
 		"start":
@@ -722,6 +788,8 @@ func _guest_rx(d: Dictionary) -> void:
 		"to_lobby":  # the host is back in the lobby: "เล่นต่อ" on the results takes you there
 			in_game = false
 			_game = null
+			if watching:  # that game is over: nothing more to watch
+				leave.call_deferred()
 		"init":
 			_init_state = d["s"]
 			_init_logs = d.get("log", [])
@@ -745,7 +813,7 @@ func _guest_rx(d: Dictionary) -> void:
 func attach_host(g: GameController) -> void:
 	_game = g
 	_live = false
-	_polling = false
+	_polling = not _enet()  # slowly: spectators still come in through the room API
 	_logs.clear()
 	g.state_changed.connect(func() -> void: _dirty = true)
 	g.log_entry.connect(_on_log_entry)
@@ -779,21 +847,31 @@ func send_init() -> void:
 		_send(id, {"t": "init", "s": GameSync.snapshot(_game, _seat_of(id)), "log": _logs.get(id, [])})
 	_logs.clear()
 	_live = true
+	for id: int in _watchers:
+		_welcome_watcher(id)
+
+
+## Host: spectator `id` gets the game so far.
+func _welcome_watcher(id: int) -> void:
+	_send(id, {"t": "watching", "s": GameSync.snapshot(_game, GameSync.WATCHER), "settings": {
+		"rings_to_win": GameConfig.rings_to_win, "minigames": GameConfig.minigames,
+		"turn_seconds": GameConfig.turn_seconds}})
+	_game._log("[color=#b9a98a]%s เข้ามาชม[/color]" % _watchers[id])
 
 
 func _on_event(name: String, args: Array) -> void:
 	if not _live:
 		return
 	var n := _game.players.size()
-	for id in _guest_ids():
-		var seat := _seat_of(id)
+	for id in _viewer_ids():
+		var seat := _view_of(id)
 		_send(id, {"t": "ev", "n": name, "a": GameSync.event_args(name, args, seat, n),
 			"s": GameSync.snapshot(_game, seat)})
 
 
 func _on_log_entry(owner: int, text: String, others: String) -> void:
-	for id in _guest_ids():
-		var seat := _seat_of(id)
+	for id in _viewer_ids():
+		var seat := _view_of(id)
 		var line := text if owner < 0 or owner == seat else others
 		if line == "":
 			continue

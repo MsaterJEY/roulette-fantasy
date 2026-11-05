@@ -1511,7 +1511,7 @@ func _build_banner() -> void:
 
 func _build_log() -> void:
 	log_panel = PanelContainer.new()
-	log_panel.position = Vector2(960 - MARGIN - 138, 80)
+	log_panel.position = Vector2(960 - MARGIN - 138, 121)  # under the full screen button
 	log_panel.custom_minimum_size = Vector2(138, 300)
 	log_panel.add_theme_stylebox_override("panel", UiStyle.panel(Color(UiStyle.WOOD_DARK, 0.9), UiStyle.BRASS))
 	add_child(log_panel)

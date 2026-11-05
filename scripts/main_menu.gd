@@ -246,6 +246,7 @@ func _build_join() -> Control:
 	box.add_child(hint)
 	var code := LineEdit.new()
 	code.max_length = 6
+	MenuUi.keyboard_limit(code)
 	code.placeholder_text = "000000"
 	code.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	code.custom_minimum_size = Vector2(260, 58)
@@ -333,6 +334,7 @@ func _ask_password(room_code: String, wrong: bool) -> void:
 		box.add_child(MenuUi.label("รหัสไม่ถูกต้อง ลองใหม่", 13, Color("ff8a7a")))
 	var pw := LineEdit.new()
 	pw.max_length = 4
+	MenuUi.keyboard_limit(pw)
 	pw.placeholder_text = "0000"
 	pw.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	pw.custom_minimum_size = Vector2(160, 44)
@@ -430,6 +432,7 @@ func _fill_sections() -> void:
 	_room_name = LineEdit.new()
 	_room_name.text = GameConfig.room_name
 	_room_name.max_length = 24
+	MenuUi.keyboard_limit(_room_name)
 	_room_name.custom_minimum_size = Vector2(300, 34)
 	_room_name.add_theme_stylebox_override("normal", UiStyle.panel(Color("120c08"), MenuUi.GOLD_DARK, 1, 6))
 	_room_name.text_changed.connect(func(t: String) -> void:
@@ -684,6 +687,7 @@ func _build_lobby() -> Control:
 	var say := LineEdit.new()
 	say.placeholder_text = "พิมพ์ข้อความ แล้วกด Enter"
 	say.max_length = 60
+	MenuUi.keyboard_limit(say)
 	say.add_theme_stylebox_override("normal", UiStyle.panel(Color("120c08"), MenuUi.GOLD_DARK, 1, 6))
 	say.text_submitted.connect(func(t: String) -> void:
 		NetPlay.node().say(t)
@@ -982,7 +986,8 @@ func _open_settings() -> void:
 	box.add_child(grid)
 	var name := LineEdit.new()
 	name.text = GameConfig.player_name
-	name.max_length = 16
+	name.max_length = GameConfig.NAME_MAX
+	MenuUi.keyboard_limit(name)
 	name.custom_minimum_size = Vector2(260, 34)
 	name.add_theme_stylebox_override("normal", UiStyle.panel(Color("120c08"), MenuUi.GOLD_DARK, 1, 6))
 	_form_row(grid, "ชื่อผู้เล่น", name)

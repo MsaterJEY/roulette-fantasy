@@ -653,7 +653,7 @@ func _host_rx(from: int, d: Dictionary) -> void:
 				_send(from, {"t": "refused", "why": "full"})
 				return
 			var id := str(d.get("char", ""))
-			seats[free] = {"name": _unique_name(str(d.get("name", "ผู้เล่น")).left(16)), "human": true, "peer": from, "ready": false,
+			seats[free] = {"name": _unique_name(str(d.get("name", "ผู้เล่น")).left(GameConfig.NAME_MAX)), "human": true, "peer": from, "ready": false,
 				"char": id if CharacterDB.ids().has(id) else seats[free]["char"]}
 			_say_system("[color=#b9a98a]%s เข้าห้อง[/color]" % seats[free]["name"])
 			_fit_bots()

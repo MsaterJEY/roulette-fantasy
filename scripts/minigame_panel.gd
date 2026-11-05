@@ -62,6 +62,7 @@ func _ready() -> void:
 	_input_row.add_theme_constant_override("separation", 8)
 	box.add_child(_input_row)
 	_input = LineEdit.new()
+	MenuUi.keyboard_limit(_input)
 	_input.placeholder_text = "พิมพ์คำตอบ (ไทยหรืออังกฤษ)"
 	_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_input.text_submitted.connect(func(_t: String) -> void: _send(_input.text))

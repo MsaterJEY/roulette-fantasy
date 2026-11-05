@@ -35,6 +35,7 @@ static var names: Array[String] = []
 static var humans: Array[bool] = []  # seats played by people (online); empty = you only
 
 # player settings
+const NAME_MAX := 24  # characters; Thai vowels and tone marks each count as one
 static var player_name := "ผู้เล่น"
 static var sfx_volume := 0.8  # 0..1
 static var _loaded := false

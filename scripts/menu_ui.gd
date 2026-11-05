@@ -60,6 +60,15 @@ static func big_button(icon: String, thai: String, english: String, primary := f
 
 
 ## A small button (back, toggles, footer links).
+## On a phone the keyboard types into a hidden box on the web page, which knows nothing of the
+## field's max_length: letters past it would pile up unseen and Backspace would seem dead.
+## This hands the limit to the page (index.html's focusin script) while the field has focus.
+static func keyboard_limit(edit: LineEdit) -> void:
+	if OS.has_feature("web"):
+		edit.focus_entered.connect(func() -> void:
+			JavaScriptBridge.eval("window.rfMaxLen=%d" % edit.max_length, true))
+
+
 static func small_button(text: String, icon := "", width := 0.0) -> Button:
 	var b := Button.new()
 	b.text = text

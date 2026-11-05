@@ -139,6 +139,7 @@ func _refresh() -> void:
 		_input.grab_focus.call_deferred()
 	else:
 		_error.text = ""
+		_input.text = ""  # an answer not sent in time doesn't carry over
 
 
 func _process(_delta: float) -> void:

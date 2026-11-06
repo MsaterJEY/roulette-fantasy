@@ -170,6 +170,16 @@ func _take_web_replies() -> void:
 			done.call(reply if reply is Dictionary else {"error": "network"})
 
 
+## The minigame questions from the database, for whoever runs the game (guests get each
+## question from the host). No reply or a bad one: the questions packed with the game stay.
+## Nothing waits for this: the first minigame comes rounds later.
+func load_questions() -> void:
+	if _enet() or not (OS.has_feature("web") or OS.get_environment("RF_API") != ""):
+		return
+	_api({"action": "questions"}, func(r: Dictionary) -> void:
+		Minigame.use_questions(r.get("questions")))
+
+
 func list_rooms() -> void:
 	if _enet():
 		rooms_listed.emit([])

@@ -113,7 +113,7 @@ var _opening := 0.0  # seconds left of the opening roll-off before the first tur
 var _hold := 0.0  # real seconds the game waits for an animation (an attack, a finisher)
 var opening_rolls: Array[Dictionary] = []
 var _minigame_close := 0.0  # seconds the results stay up
-var _question_bag: Array[int] = []  # question indexes not asked yet this game
+var _question_bag: Array[Dictionary] = []  # questions not asked yet this game
 ## Online guest: this game only mirrors the host's (GameSync.apply). Its clocks run on between
 ## updates, nothing else happens here, and your actions go to the host through `remote`
 ## (name, args) instead of being applied.
@@ -784,13 +784,13 @@ func _start_minigame() -> void:
 	if qs.is_empty():
 		return
 	if _question_bag.is_empty():
-		_question_bag.assign(range(qs.size()))
+		_question_bag.assign(qs)
 		_question_bag.shuffle()
 	var seats: Array[int] = []
 	for s in order:
 		if players[s].alive:
 			seats.append(s)
-	minigame = Minigame.new(qs[_question_bag.pop_back()], seats)
+	minigame = Minigame.new(_question_bag.pop_back(), seats)
 	_bot_wait = rng.randf_range(2.0, 3.0)  # time to read the question
 	_log("[color=#c9a227][b]Minigame: ทายอันดับ[/b] · %s[/color]" % minigame.question["question"])
 	minigame_started.emit()

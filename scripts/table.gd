@@ -156,6 +156,7 @@ func _start(my_id: String) -> void:
 	SeatPanel.rings_max = GameConfig.rings_to_win
 	SeatPanel.hp_max = game.max_hp  # static: back to full after last game's shrinking
 	if not game.is_mirror():  # a guest's game is already the host's
+		NetPlay.node().load_questions()
 		game.start_game(names, ids, GameConfig.humans)
 	if NetPlay.node().is_host():
 		NetPlay.node().send_init()

@@ -34,6 +34,35 @@ static func questions() -> Array[Dictionary]:
 	return _questions
 
 
+## Use `list` (from the database) instead of the questions packed with the game. Bad entries
+## are dropped; with nothing usable the current questions stay. Returns whether it was used.
+static func use_questions(list: Variant) -> bool:
+	if not list is Array:
+		return false
+	var good: Array[Dictionary] = []
+	for q: Variant in list:
+		if _usable(q):
+			good.append(q)
+	if good.is_empty():
+		return false
+	_questions = good
+	return true
+
+
+static func _usable(q: Variant) -> bool:
+	if not (q is Dictionary and q.get("question") is String and q["question"] != ""):
+		return false
+	if not (q.get("items") is Array and not q["items"].is_empty()):
+		return false
+	for item: Variant in q["items"]:
+		if not (item is Dictionary and item.get("name") is String and item["name"] != ""):
+			return false
+		var aliases: Variant = item.get("aliases", [])
+		if not (aliases is Array and aliases.all(func(a: Variant) -> bool: return a is String)):
+			return false
+	return true
+
+
 func _init(p_question: Dictionary, p_seats: Array[int]) -> void:
 	question = p_question
 	seats = p_seats

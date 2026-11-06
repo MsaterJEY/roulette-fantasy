@@ -14,12 +14,15 @@
 //   poll   {code, peer, count?, watchers?}        -> {messages: [{from, data}]}  (host: count keeps the room listed)
 //   update {code, status, count}                  -> {ok}
 //   close  {code}                                 -> {ok}
+//   questions {}                                  -> {questions: [...]}  (minigame questions; the
+//          database's copy, first filled from questions_seed.json = data/minigame_ranks.json)
 
 const URL_ = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
 const TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 const ROOM_TTL = 90; // seconds a room stays listed without word from its host
 const MSG_TTL = 120;
 const SEEN_SECONDS = 15; // a browser counts as looking at the list this long after asking for it
+const QUESTIONS_KEY = "rf:questions"; // no expiry: this is the game's data, not a room
 
 async function redis(...commands) {
   const res = await fetch(`${URL_}/pipeline`, {
@@ -146,6 +149,15 @@ const actions = {
   async close(b) {
     if (isCode(b.code)) await redis(["DEL", roomKey(b.code)], ["SREM", "rf:rooms", b.code]);
     return { ok: true };
+  },
+
+  async questions() {
+    const [raw] = await redis(["GET", QUESTIONS_KEY]);
+    if (raw) return { questions: JSON.parse(raw) };
+    // required here, not at the top: a problem with this file must not take the rooms down
+    const { questions } = require("./questions_seed.json");
+    await redis(["SET", QUESTIONS_KEY, JSON.stringify(questions), "NX"]);
+    return { questions };
   },
 };
 

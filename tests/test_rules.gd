@@ -15,6 +15,7 @@ func _initialize() -> void:
 	test_no_wasted_restores()
 	test_minigame_scoring()
 	test_minigame_flow()
+	test_minigame_questions()
 	test_bot_curses()
 	test_result_order()
 	test_buy_with_full_hand()
@@ -294,6 +295,33 @@ func test_minigame_flow() -> void:
 	for n: String in named:
 		unique[n] = true
 	check(g.minigame.done() and unique.size() == named.size(), "bots finish the minigame without repeats")
+
+
+func test_minigame_questions() -> void:
+	var packed: Array[Dictionary] = Minigame.questions().duplicate()
+	var one := {"question": "q", "items": [{"name": "a", "aliases": ["b"]}]}
+	for bad: Variant in [null, "x", [], [{}], [{"question": "q", "items": []}],
+			[{"question": "q", "items": [{"name": ""}]}],
+			[{"question": "q", "items": [{"name": "a", "aliases": [1]}]}]]:
+		check(not Minigame.use_questions(bad), "a bad list is refused: %s" % str(bad))
+	check(Minigame.questions() == packed, "after a bad list the packed questions stay")
+	check(Minigame.use_questions([{}, one]) and Minigame.questions() == ([one] as Array[Dictionary]),
+		"a good list replaces the questions, without its bad entries")
+
+	var g := new_game()
+	Minigame.use_questions(packed)
+	g._start_minigame()
+	Minigame.use_questions([one])  # the database answers after the bag was filled
+	for i in packed.size() - 1:
+		g._start_minigame()
+		check(packed.has(g.minigame.question), "a list arriving mid-game can't break the draw")
+	g._start_minigame()
+	check(g.minigame.question == one, "the next bag uses the new list")
+	Minigame.use_questions(packed)
+
+	var seed_file := ProjectSettings.globalize_path("res://web/api/questions_seed.json")
+	check(FileAccess.get_file_as_string(seed_file) == FileAccess.get_file_as_string(Minigame.PATH),
+		"the database's first fill (web/api/questions_seed.json) matches data/minigame_ranks.json")
 
 
 func test_bot_curses() -> void:

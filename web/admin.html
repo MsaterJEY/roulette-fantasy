@@ -56,6 +56,8 @@ button:disabled { opacity: .5; cursor: default; }
 #question-list button[aria-current="true"] { border-color: var(--gold); background: #3a2815; }
 #question-list small { display: block; color: var(--dim); }
 #add-question { width: 100%; }
+#csv-tools { display: grid; gap: .35rem; margin-block-start: .35rem; }
+#import-list { max-height: 45vh; overflow: auto; margin: 0; padding-inline-start: 1.2rem; }
 
 .items-head { display: flex; justify-content: space-between; align-items: center; gap: .5rem; margin-block-end: .5rem; }
 .items-head h2 { margin: 0; }
@@ -116,6 +118,12 @@ dialog form { display: flex; gap: .5rem; justify-content: flex-end; margin-block
       <h2>คำถาม <span id="question-count"></span></h2>
       <ol id="question-list"></ol>
       <button id="add-question" type="button">+ เพิ่มคำถาม</button>
+      <div id="csv-tools">
+        <button id="import-csv" type="button">นำเข้าจากไฟล์ CSV</button>
+        <button id="csv-template" type="button">ดาวน์โหลดไฟล์ตัวอย่าง</button>
+        <input id="csv-file" type="file" accept=".csv,text/csv" aria-label="เลือกไฟล์ CSV" hidden>
+        <p class="hint">คอลัมน์: คำถาม, อันดับ, คำตอบ, ชื่ออื่น, แหล่งอ้างอิง ต้องมีคำถามกับคำตอบ ถ้าไม่ใส่อันดับจะเรียงตามแถว</p>
+      </div>
     </nav>
     <section id="question-panel" class="panel">
       <div class="field">
@@ -154,6 +162,16 @@ dialog form { display: flex; gap: .5rem; justify-content: flex-end; margin-block
   <form method="dialog">
     <button value="cancel" autofocus>ยกเลิก</button>
     <button value="delete" class="danger">ลบ</button>
+  </form>
+</dialog>
+
+<dialog id="import-dialog" aria-labelledby="import-title">
+  <h2 id="import-title"></h2>
+  <ul id="import-list"></ul>
+  <p id="import-note" class="hint"></p>
+  <form method="dialog">
+    <button id="import-cancel" value="cancel" autofocus>ยกเลิก</button>
+    <button id="import-confirm" value="import" class="primary">นำเข้า</button>
   </form>
 </dialog>
 
@@ -405,6 +423,241 @@ $("save").addEventListener("click", async () => {
   dirty = false;
   renderAll();
   setMessage(`บันทึกแล้ว ${r.count} ข้อ`, "good");
+});
+
+// ---------- CSV ----------
+
+const MAX_QUESTIONS = 200;
+const MAX_ALIASES = 30;
+const MAX_CSV_BYTES = 2 * 1024 * 1024;
+const MAX_ERRORS_SHOWN = 20;
+const CSV_COLUMNS = {
+  คำถาม: "question", question: "question",
+  อันดับ: "rank", rank: "rank",
+  คำตอบ: "name", answer: "name", name: "name",
+  ชื่ออื่น: "aliases", aliases: "aliases", alias: "aliases",
+  แหล่งอ้างอิง: "source", source: "source",
+};
+const CSV_TEMPLATE = [
+  "คำถาม,อันดับ,คำตอบ,ชื่ออื่น,แหล่งอ้างอิง",
+  'ดาวเคราะห์ที่ใหญ่ที่สุดในระบบสุริยะ,1,ดาวพฤหัสบดี,"พฤหัส, jupiter",https://en.wikipedia.org/wiki/List_of_Solar_System_objects_by_size',
+  ',2,ดาวเสาร์,"เสาร์, saturn",',
+  ',3,ดาวยูเรนัส,"ยูเรนัส, uranus",',
+  ',4,ดาวเนปจูน,"เนปจูน, neptune",',
+  "",
+].join("\r\n");
+
+// The same comparison the game makes (Minigame.normalize).
+const normalize = (s) => s.trim().toLowerCase().replace(/[ .]/g, "");
+const cleanCell = (s) => (s || "").replace(/\s+/g, " ").trim();
+
+// Excel saves "CSV UTF-8" with a mark at the start, but plain "CSV" in the Thai Windows encoding.
+function decodeCsv(buffer) {
+  const b = new Uint8Array(buffer);
+  if (b[0] === 0xff && b[1] === 0xfe) return new TextDecoder("utf-16le").decode(b);
+  if (b[0] === 0xfe && b[1] === 0xff) return new TextDecoder("utf-16be").decode(b);
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(b);
+  } catch (e) {
+    return new TextDecoder("windows-874").decode(b);
+  }
+}
+
+// [{cells, line}]; a quoted cell may hold the separator, "" for a quote, and line breaks.
+function parseCsv(text) {
+  const firstLine = text.split(/\r?\n/, 1)[0];
+  const separator = [",", ";", "\t"].reduce((best, d) =>
+    firstLine.split(d).length > firstLine.split(best).length ? d : best);
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let quoted = false;
+  let line = 1;
+  let rowLine = 1;
+  const endCell = () => {
+    row.push(cell);
+    cell = "";
+  };
+  const endRow = () => {
+    endCell();
+    rows.push({ cells: row, line: rowLine });
+    row = [];
+    rowLine = line;
+  };
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c === '"' && text[i + 1] === '"') {
+        cell += '"';
+        i++;
+      } else if (c === '"') {
+        quoted = false;
+      } else {
+        if (c === "\n") line++;
+        cell += c;
+      }
+    } else if (c === '"' && cell === "") {
+      quoted = true;
+    } else if (c === separator) {
+      endCell();
+    } else if (c === "\n") {
+      line++;
+      endRow();
+    } else if (c !== "\r") {
+      cell += c;
+    }
+  }
+  if (cell !== "" || row.length > 0) endRow();
+  return rows;
+}
+
+// One question's answers in rank order, adding to `errors` what is wrong with them.
+function orderedItems(group, errors) {
+  const where = `คำถาม "${group.question}"`;
+  const rows = group.rows;
+  const ranked = rows.filter((r) => r.rank !== "");
+  if (rows.length > MAX_ITEMS) errors.push(`${where}: มีคำตอบเกิน ${MAX_ITEMS} รายการ`);
+  if (ranked.length > 0) {
+    if (ranked.length < rows.length) {
+      errors.push(`${where}: ใส่อันดับไม่ครบทุกแถว`);
+      return [];
+    }
+    if (rows.some((r) => !/^\d+$/.test(r.rank))) {
+      errors.push(`${where}: อันดับต้องเป็นตัวเลข`);
+      return [];
+    }
+    rows.sort((a, b) => Number(a.rank) - Number(b.rank));
+    if (rows.some((r, i) => Number(r.rank) !== i + 1)) {
+      errors.push(`${where}: อันดับต้องเรียง 1, 2, 3 ไปเรื่อย ๆ ไม่ซ้ำและไม่ข้าม`);
+      return [];
+    }
+  }
+  const seen = new Map();
+  return rows.map((r) => {
+    const key = normalize(r.name);
+    if (seen.has(key)) errors.push(`แถว ${r.line}: คำตอบ "${r.name}" ซ้ำกับแถว ${seen.get(key)}`);
+    seen.set(key, r.line);
+    return { name: r.name, aliases: r.aliases };
+  });
+}
+
+// {list: questions in the file, errors: what must be fixed first}
+function readQuestions(rows) {
+  const errors = [];
+  const header = rows.length > 0 ? rows[0].cells.map((c) => CSV_COLUMNS[cleanCell(c).toLowerCase()] || "") : [];
+  if (!header.includes("question") || !header.includes("name")) {
+    return { list: [], errors: ["แถวแรกต้องเป็นหัวตาราง และมีคอลัมน์ คำถาม กับ คำตอบ"] };
+  }
+  const groups = new Map();
+  let group = null;
+  for (const { cells, line } of rows.slice(1)) {
+    if (cells.every((c) => cleanCell(c) === "")) continue;
+    const row = {};
+    header.forEach((column, i) => {
+      if (column) row[column] = cleanCell(cells[i]);
+    });
+    if (cells.slice(header.length).some((c) => cleanCell(c) !== "")) {
+      errors.push(`แถว ${line}: มีข้อมูลเกินคอลัมน์ ถ้าชื่ออื่นมีจุลภาคต้องครอบด้วยเครื่องหมายคำพูด`);
+      continue;
+    }
+    if (row.question) {
+      const key = normalize(row.question);
+      if (key === "" || row.question.length > 200) {
+        errors.push(`แถว ${line}: คำถามต้องมีข้อความ และยาวไม่เกิน 200 ตัวอักษร`);
+        continue;
+      }
+      if (!groups.has(key)) groups.set(key, { question: row.question, source: "", rows: [] });
+      group = groups.get(key);
+    }
+    if (!group) {
+      errors.push(`แถว ${line}: ยังไม่มีคำถาม`);
+      continue;
+    }
+    if (normalize(row.name || "") === "" || row.name.length > 100) {
+      errors.push(`แถว ${line}: คำตอบต้องมีข้อความ และยาวไม่เกิน 100 ตัวอักษร`);
+      continue;
+    }
+    const aliases = (row.aliases || "").split(/[,;|]/).map(cleanCell).filter((a) => normalize(a) !== "");
+    if (aliases.length > MAX_ALIASES || aliases.some((a) => a.length > 100)) {
+      errors.push(`แถว ${line}: ชื่ออื่นได้ไม่เกิน ${MAX_ALIASES} ชื่อ ชื่อละไม่เกิน 100 ตัวอักษร`);
+      continue;
+    }
+    if (row.source) group.source = row.source.slice(0, 300);
+    group.rows.push({ name: row.name, aliases, rank: row.rank || "", line });
+  }
+  const list = [...groups.values()].map((g) => {
+    const q = { question: g.question, items: orderedItems(g, errors) };
+    if (g.source) q.source = g.source;
+    return q;
+  });
+  if (list.length === 0 && errors.length === 0) errors.push("ไม่พบคำถามในไฟล์");
+  return { list, errors };
+}
+
+const questionIndex = (text) => questions.findIndex((q) => normalize(q.question) === normalize(text));
+
+let pendingImport = [];
+
+function showImport(list, errors) {
+  const added = list.filter((q) => questionIndex(q.question) < 0).length;
+  if (errors.length === 0 && questions.length + added > MAX_QUESTIONS) {
+    errors = [`รวมแล้วเกิน ${MAX_QUESTIONS} ข้อ`];
+  }
+  const ok = errors.length === 0;
+  pendingImport = ok ? list : [];
+  const lines = ok
+    ? list.map((q) => `${questionIndex(q.question) < 0 ? "เพิ่มใหม่" : "แทนที่ข้อเดิม"}: ${q.question} (${q.items.length} คำตอบ)`)
+    : errors.slice(0, MAX_ERRORS_SHOWN);
+  if (errors.length > MAX_ERRORS_SHOWN) lines.push(`และอีก ${errors.length - MAX_ERRORS_SHOWN} จุด`);
+  $("import-list").replaceChildren(...lines.map((text) => {
+    const li = document.createElement("li");
+    li.textContent = text;
+    return li;
+  }));
+  $("import-title").textContent = ok ? `นำเข้า ${list.length} ข้อ?` : "ไฟล์นี้ยังนำเข้าไม่ได้";
+  $("import-note").textContent = ok
+    ? "ยังไม่ขึ้นเกมจนกว่าจะกดบันทึกทั้งหมด"
+    : "ยังไม่มีอะไรเปลี่ยน แก้ไฟล์แล้วนำเข้าใหม่";
+  $("import-cancel").textContent = ok ? "ยกเลิก" : "ปิด";
+  $("import-confirm").hidden = !ok;
+  $("import-dialog").showModal();
+}
+
+$("import-csv").addEventListener("click", () => $("csv-file").click());
+
+$("csv-file").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = ""; // choosing the same file again, after fixing it, must still work
+  if (file.size > MAX_CSV_BYTES) {
+    showImport([], ["ไฟล์ใหญ่เกิน 2 MB"]);
+    return;
+  }
+  const { list, errors } = readQuestions(parseCsv(decodeCsv(await file.arrayBuffer())));
+  showImport(list, errors);
+});
+
+$("import-confirm").addEventListener("click", () => {
+  const shown = [];
+  for (const q of pendingImport) {
+    const i = questionIndex(q.question);
+    if (i >= 0) questions[i] = { ...questions[i], ...q };
+    else questions.push(q);
+    shown.push(i >= 0 ? i : questions.length - 1);
+  }
+  current = shown[0];
+  renderAll();
+  markDirty();
+  setMessage(`นำเข้าแล้ว ${shown.length} ข้อ กดบันทึกทั้งหมดเพื่อใช้งาน`);
+});
+
+$("csv-template").addEventListener("click", () => {
+  const url = URL.createObjectURL(new Blob(["﻿" + CSV_TEMPLATE], { type: "text/csv;charset=utf-8" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "questions_template.csv";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
 
 window.addEventListener("beforeunload", (e) => {

@@ -27,7 +27,7 @@ func _ready() -> void:
 		var e=document.createElement('input');
 		e.type='text';e.autocomplete='off';e.placeholder=%s;e.setAttribute('enterkeyhint','send');
 		e.style.cssText='position:fixed;display:none;z-index:10;box-sizing:border-box;margin:0;padding:0 8px;'
-			+'font-size:16px;color:#f3e6c8;background:#120c08;border:1px solid #c9a227;border-radius:6px;outline:none';
+			+'font-size:16px;color:#3b2412;background:#f6ead0;border:2px solid #a97c2f;border-radius:6px;outline:none';
 		e.addEventListener('keydown',function(v){if(v.key==='Enter'){v.preventDefault();window.rfFieldEnter=true}});
 		document.body.appendChild(e);window.rfField=e;
 	})()""" % JSON.stringify(edit.placeholder_text), true)

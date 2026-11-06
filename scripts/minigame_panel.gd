@@ -46,17 +46,7 @@ func _ready() -> void:
 	_question.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var hint := _label(box, 12, UiStyle.TEXT_DIM)
 	hint.text = "คะแนน = 101 − อันดับ · ไม่อยู่ในรายการ = 0 · ห้ามตอบซ้ำกับที่มีคนตอบแล้ว"
-	_scores = HFlowContainer.new()  # wraps onto a second line with 5-6 players
-	_scores.add_theme_constant_override("h_separation", 16)
-	box.add_child(_scores)
-
-	_answers = RichTextLabel.new()
-	_answers.bbcode_enabled = true
-	_answers.scroll_following = true
-	_answers.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_answers.add_theme_font_size_override("normal_font_size", 13)
-	box.add_child(_answers)
-
+	# the answer box stays high up: a phone's keyboard covers the lower half of the screen
 	_turn = _label(box, 15, UiStyle.TEXT)
 	_input_row = HBoxContainer.new()
 	_input_row.add_theme_constant_override("separation", 8)
@@ -78,6 +68,18 @@ func _ready() -> void:
 	skip.pressed.connect(func() -> void: _send(""))
 	_input_row.add_child(skip)
 	_error = _label(box, 12, Color("ff6b6b"))
+	_scores = HFlowContainer.new()  # wraps onto a second line with 5-6 players
+	_scores.add_theme_constant_override("h_separation", 16)
+	box.add_child(_scores)
+
+	_answers = RichTextLabel.new()
+	_answers.bbcode_enabled = true
+	_answers.scroll_following = true
+	_answers.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_answers.add_theme_font_size_override("normal_font_size", 13)
+	box.add_child(_answers)
+	if PhoneField.wanted():
+		add_child(PhoneField.new(_input))
 
 
 func _label(parent: Container, font_size: int, color: Color) -> Label:
@@ -135,7 +137,7 @@ func _refresh() -> void:
 				r["place"], game.players[r["seat"]].display_name, r["score"], r["shards"], r["gold"]])
 	var mine := not mg.done() and game.is_me(game.players[mg.current_seat()])
 	_input_row.visible = mine
-	if mine:
+	if mine and _input.focus_mode != Control.FOCUS_NONE:
 		_input.grab_focus.call_deferred()
 	else:
 		_error.text = ""

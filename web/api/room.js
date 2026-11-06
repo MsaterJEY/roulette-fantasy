@@ -16,6 +16,12 @@
 //   close  {code}                                 -> {ok}
 //   questions {}                                  -> {questions: [...]}  (minigame questions; the
 //          database's copy, first filled from questions_seed.json = data/minigame_ranks.json)
+//   admin_check {secret}                          -> {ok}  (or {error: wrong_code|locked|no_admin_code})
+//   admin_save  {secret, questions}               -> {ok}  (or those errors, or {error: bad_questions, detail})
+//          (web/admin.html. The secret is the ADMIN_CODE environment variable in Vercel; it is
+//          checked on every call and never reaches the game files. No ADMIN_CODE = no admin.)
+
+const crypto = require("crypto");
 
 const URL_ = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
 const TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -23,6 +29,12 @@ const ROOM_TTL = 90; // seconds a room stays listed without word from its host
 const MSG_TTL = 120;
 const SEEN_SECONDS = 15; // a browser counts as looking at the list this long after asking for it
 const QUESTIONS_KEY = "rf:questions"; // no expiry: this is the game's data, not a room
+const QUESTIONS_BACKUP_KEY = "rf:questions:previous"; // what the last admin save replaced
+const ADMIN_TRIES = 10; // wrong codes from one address before it is locked out
+const ADMIN_LOCK_SECONDS = 900;
+const MAX_QUESTIONS = 200;
+const MAX_ITEMS = 100; // score = 101 - rank, so rank 100 is the last that scores
+const MAX_ALIASES = 30;
 
 async function redis(...commands) {
   const res = await fetch(`${URL_}/pipeline`, {
@@ -47,6 +59,63 @@ async function getRoom(code) {
 
 async function saveRoom(room) {
   await redis(["SET", roomKey(room.code), JSON.stringify(room), "EX", ROOM_TTL], ["SADD", "rf:rooms", room.code]);
+}
+
+function sameCode(a, b) {
+  const hash = (s) => crypto.createHash("sha256").update(String(s)).digest();
+  return crypto.timingSafeEqual(hash(a), hash(b));
+}
+
+// "" if this request carries the admin code, or why not.
+async function adminError(b, req) {
+  const code = process.env.ADMIN_CODE;
+  if (!code) return "no_admin_code";
+  const ip = String((req.headers || {})["x-forwarded-for"] || "local").split(",")[0].trim();
+  const key = `rf:adminfail:${ip}`;
+  const [tries] = await redis(["GET", key]);
+  if (Number(tries) >= ADMIN_TRIES) return "locked";
+  if (sameCode(b.secret, code)) return "";
+  await redis(["INCR", key], ["EXPIRE", key, ADMIN_LOCK_SECONDS]);
+  return "wrong_code";
+}
+
+// The same comparison the game makes (Minigame.normalize).
+const normalize = (s) => s.trim().toLowerCase().replace(/[ .]/g, "");
+
+// {questions} with only the fields the game uses, or {detail}: what is wrong, for the admin.
+function cleanQuestions(list) {
+  if (!Array.isArray(list) || list.length === 0 || list.length > MAX_QUESTIONS) {
+    return { detail: `ต้องมีคำถาม 1 ถึง ${MAX_QUESTIONS} ข้อ` };
+  }
+  const isText = (v, max) => typeof v === "string" && normalize(v) !== "" && v.length <= max;
+  const questions = [];
+  for (let i = 0; i < list.length; i++) {
+    const q = list[i];
+    const where = `คำถามข้อ ${i + 1}`;
+    if (!q || !isText(q.question, 200)) return { detail: `${where}: ต้องมีข้อความคำถาม (ไม่เกิน 200 ตัวอักษร)` };
+    if (!Array.isArray(q.items) || q.items.length === 0 || q.items.length > MAX_ITEMS) {
+      return { detail: `${where}: ต้องมีคำตอบ 1 ถึง ${MAX_ITEMS} รายการ` };
+    }
+    const seen = new Set();
+    const items = [];
+    for (let k = 0; k < q.items.length; k++) {
+      const item = q.items[k];
+      if (!item || !isText(item.name, 100)) return { detail: `${where} อันดับ ${k + 1}: ต้องมีชื่อคำตอบ (ไม่เกิน 100 ตัวอักษร)` };
+      if (seen.has(normalize(item.name))) return { detail: `${where} อันดับ ${k + 1}: ชื่อ "${item.name}" ซ้ำกับอันดับก่อนหน้า` };
+      seen.add(normalize(item.name));
+      const aliases = item.aliases === undefined ? [] : item.aliases;
+      if (!Array.isArray(aliases) || aliases.length > MAX_ALIASES || !aliases.every((a) => isText(a, 100))) {
+        return { detail: `${where} อันดับ ${k + 1}: ชื่ออื่นไม่ถูกต้อง (ไม่เกิน ${MAX_ALIASES} ชื่อ)` };
+      }
+      items.push({ name: item.name.trim(), aliases: aliases.map((a) => a.trim()) });
+    }
+    const out = { question: q.question.trim(), items };
+    for (const field of ["source", "as_of"]) {
+      if (typeof q[field] === "string" && q[field].trim() !== "") out[field] = q[field].trim().slice(0, 300);
+    }
+    questions.push(out);
+  }
+  return { questions };
 }
 
 const actions = {
@@ -159,6 +228,23 @@ const actions = {
     await redis(["SET", QUESTIONS_KEY, JSON.stringify(questions), "NX"]);
     return { questions };
   },
+
+  async admin_check(b, req) {
+    const error = await adminError(b, req);
+    return error ? { error } : { ok: true };
+  },
+
+  async admin_save(b, req) {
+    const error = await adminError(b, req);
+    if (error) return { error };
+    const { questions, detail } = cleanQuestions(b.questions);
+    if (detail) return { error: "bad_questions", detail };
+    const [old] = await redis(["GET", QUESTIONS_KEY]);
+    const writes = [["SET", QUESTIONS_KEY, JSON.stringify(questions)]];
+    if (old) writes.unshift(["SET", QUESTIONS_BACKUP_KEY, old]);
+    await redis(...writes);
+    return { ok: true, count: questions.length };
+  },
 };
 
 module.exports = async function handler(req, res) {
@@ -169,7 +255,7 @@ module.exports = async function handler(req, res) {
   const act = actions[body.action];
   if (!act) return res.status(400).json({ error: "unknown_action" });
   try {
-    return res.status(200).json(await act(body));
+    return res.status(200).json(await act(body, req));
   } catch (e) {
     return res.status(502).json({ error: "storage" });
   }

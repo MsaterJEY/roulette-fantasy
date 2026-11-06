@@ -66,7 +66,7 @@ unchanged: 4 players ~10 rounds (~18 min), 6 players ~11 (~23 min), always won b
 A "top 100" question. Whoever runs the game (web) loads the questions from the database at game
 start (`questions` in web/api/room.js, key `rf:questions`); `data/minigame_ranks.json` is packed
 with the game as the fallback, and fills the database the first time (web/api/questions_seed.json,
-same content). Once filled, editing the JSON no longer changes the live questions. 3 rounds, same question; each
+same content). Once filled, editing the JSON no longer changes the live questions: use /admin.html (secret code = ADMIN_CODE in Vercel). 3 rounds, same question; each
 player names an item; score = 101 − its rank (not in list = 0); no repeating any earlier answer;
 Thai or English answers (aliases in the JSON). Bots pick answers from the list with some error.
 Rewards: 1st 3 shards + 10 gold, 2nd 2 + 5, 3rd 1 + 5, 4th 0 + 3.

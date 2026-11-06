@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>จัดการคำถามมินิเกม</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #120c08; --panel: #1d140d; --panel-2: #2b1d12; --line: #8a6420;
+  --gold: #e8b84a; --text: #f3e7d0; --dim: #b8a88e; --bad: #ff8a7a; --good: #8fd694;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text); line-height: 1.5;
+  font-family: "Noto Sans Thai", "Leelawadee UI", Tahoma, system-ui, sans-serif;
+}
+[hidden] { display: none !important; }
+h1 { font-size: 1.4rem; color: var(--gold); margin: 0; }
+h2 { font-size: 1.1rem; color: var(--gold); margin: 0 0 .75rem; }
+label { display: block; margin-block-end: .25rem; color: var(--dim); }
+input {
+  width: 100%; min-height: 44px; padding: .5rem .65rem; font: inherit; font-size: 1rem;
+  color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+}
+button {
+  min-height: 44px; padding: .4rem .9rem; font: inherit; color: var(--text); cursor: pointer;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+}
+button:hover { border-color: var(--gold); }
+button.primary { background: var(--line); color: #fff2cc; border-color: var(--gold); }
+button.danger { color: var(--bad); }
+button:disabled { opacity: .5; cursor: default; }
+:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 1rem; }
+.hint { color: var(--dim); font-size: .9rem; margin: .25rem 0 0; }
+.field { margin-block-end: 1rem; }
+
+#login { max-width: 400px; margin: 12vh auto 2rem; padding-inline: 16px; }
+#login h1 { margin-block-end: 1rem; text-align: center; }
+.code-row { display: flex; gap: .5rem; }
+.code-row button { flex: none; }
+#login .primary { width: 100%; }
+#login-msg { min-height: 1.5em; margin: .5rem 0 0; color: var(--bad); }
+
+#editor { max-width: 1120px; margin: 0 auto; padding: 16px 16px 6rem; }
+#editor > header { margin-block-end: 1rem; }
+.columns { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 860px) {
+  .columns { grid-template-columns: 300px minmax(0, 1fr); align-items: start; }
+  #list-panel { position: sticky; top: 16px; max-height: calc(100vh - 7rem); overflow: auto; }
+}
+#question-list { list-style: none; margin: 0 0 .75rem; padding: 0; display: grid; gap: .35rem; }
+#question-list button { width: 100%; text-align: start; }
+#question-list button[aria-current="true"] { border-color: var(--gold); background: #3a2815; }
+#question-list small { display: block; color: var(--dim); }
+#add-question { width: 100%; }
+
+.items-head { display: flex; justify-content: space-between; align-items: center; gap: .5rem; margin-block-end: .5rem; }
+.items-head h2 { margin: 0; }
+#items { list-style: none; margin: 0 0 .75rem; padding: 0; display: grid; gap: .5rem; }
+.item {
+  display: grid; gap: .4rem; align-items: center;
+  grid-template-columns: 2.4rem minmax(0, 1fr) minmax(0, 1.4fr) auto;
+}
+.rank { text-align: center; color: var(--gold); font-weight: 700; }
+.moves { display: flex; gap: .25rem; }
+.moves button { min-width: 44px; padding: .4rem; }
+@media (max-width: 640px) {
+  .item {
+    grid-template-columns: 2.4rem minmax(0, 1fr);
+    padding-block-end: .5rem; border-block-end: 1px solid var(--panel-2);
+  }
+  .item .aliases, .item .moves { grid-column: 2; }
+}
+.question-actions { margin-block-start: 1rem; text-align: end; }
+
+#save-bar {
+  position: fixed; inset-inline: 0; bottom: 0; background: var(--panel-2);
+  border-block-start: 1px solid var(--line); padding: .6rem 16px;
+}
+#save-bar > div { max-width: 1088px; margin: 0 auto; display: flex; gap: 1rem; align-items: center; justify-content: space-between; }
+#save-msg { margin: 0; min-width: 0; }
+#save-msg.bad { color: var(--bad); }
+#save-msg.good { color: var(--good); }
+#save { flex: none; }
+
+dialog { background: var(--panel); color: var(--text); border: 1px solid var(--gold); border-radius: 10px; max-width: min(420px, calc(100vw - 32px)); }
+dialog:modal { overscroll-behavior: contain; }
+dialog::backdrop { background: rgb(0 0 0 / .6); overflow: hidden; overscroll-behavior: contain; }
+dialog form { display: flex; gap: .5rem; justify-content: flex-end; margin-block-start: 1rem; }
+</style>
+</head>
+<body>
+
+<main id="login">
+  <h1>จัดการคำถามมินิเกม</h1>
+  <form id="login-form" class="panel">
+    <label for="code">โค้ดแอดมิน</label>
+    <div class="code-row">
+      <input id="code" name="code" type="password" autocomplete="current-password" autocapitalize="off" spellcheck="false" required>
+      <button id="show-code" type="button" aria-pressed="false">แสดง</button>
+    </div>
+    <p id="login-msg" role="alert"></p>
+    <button class="primary" type="submit">เข้าสู่ระบบ</button>
+  </form>
+</main>
+
+<main id="editor" hidden>
+  <header><h1>จัดการคำถามมินิเกม</h1>
+    <p class="hint">รายการบนสุดคืออันดับ 1 คะแนน = 101 − อันดับ เกมที่เริ่มหลังบันทึกจะใช้คำถามชุดใหม่</p>
+  </header>
+  <div class="columns">
+    <nav id="list-panel" class="panel" aria-label="รายการคำถาม">
+      <h2>คำถาม <span id="question-count"></span></h2>
+      <ol id="question-list"></ol>
+      <button id="add-question" type="button">+ เพิ่มคำถาม</button>
+    </nav>
+    <section id="question-panel" class="panel">
+      <div class="field">
+        <label for="q-text">คำถาม</label>
+        <input id="q-text" name="question" maxlength="200" required>
+      </div>
+      <div class="field">
+        <label for="q-source">แหล่งอ้างอิง (ไม่บังคับ)</label>
+        <input id="q-source" name="source" type="url" maxlength="300" autocapitalize="off" spellcheck="false">
+      </div>
+      <div class="items-head">
+        <h2>คำตอบเรียงตามอันดับ <span id="item-count"></span></h2>
+      </div>
+      <p class="hint">ชื่ออื่น: คำที่นับเป็นคำตอบเดียวกัน คั่นด้วยจุลภาค เช่น china, ประเทศจีน</p>
+      <p id="short-list" class="hint" hidden>รายการสั้นไป: ถ้ามี 6 คน ตอบ 3 รอบ จะใช้คำตอบ 18 รายการ</p>
+      <ol id="items"></ol>
+      <button id="add-item" type="button">+ เพิ่มคำตอบ</button>
+      <div class="question-actions">
+        <button id="delete-question" class="danger" type="button">ลบคำถามนี้</button>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer id="save-bar" hidden>
+  <div>
+    <p id="save-msg" role="status"></p>
+    <button id="save" class="primary" type="button">บันทึกทั้งหมด</button>
+  </div>
+</footer>
+
+<dialog id="confirm-delete" aria-labelledby="confirm-title">
+  <h2 id="confirm-title">ลบคำถามนี้?</h2>
+  <p id="confirm-text"></p>
+  <p class="hint">ยังไม่ลบจริงจนกว่าจะกดบันทึกทั้งหมด</p>
+  <form method="dialog">
+    <button value="cancel" autofocus>ยกเลิก</button>
+    <button value="delete" class="danger">ลบ</button>
+  </form>
+</dialog>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const MAX_ITEMS = 100;
+const ENOUGH_ITEMS = 18; // 6 players x 3 rounds
+const ERRORS = {
+  wrong_code: "โค้ดไม่ถูกต้อง",
+  locked: "ใส่โค้ดผิดหลายครั้ง ถูกล็อก 15 นาที",
+  no_admin_code: "ยังไม่ได้ตั้งค่า ADMIN_CODE ใน Vercel",
+  no_storage: "เซิร์ฟเวอร์ต่อฐานข้อมูลไม่ได้",
+  storage: "ฐานข้อมูลตอบกลับผิดพลาด ลองอีกครั้ง",
+  network: "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองอีกครั้ง",
+};
+
+let secret = ""; // only in this page's memory: gone when the tab closes
+let questions = [];
+let current = 0;
+let dirty = false;
+
+async function api(body) {
+  try {
+    const res = await fetch("/api/room", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return await res.json();
+  } catch (e) {
+    return { error: "network" };
+  }
+}
+
+const errorText = (r) => r.detail || ERRORS[r.error] || "เกิดข้อผิดพลาด ลองอีกครั้ง";
+
+function setMessage(text, kind = "") {
+  $("save-msg").textContent = text;
+  $("save-msg").className = kind;
+}
+
+function markDirty() {
+  dirty = true;
+  setMessage("มีการแก้ไขที่ยังไม่ได้บันทึก");
+}
+
+// ---------- sign in ----------
+
+$("show-code").addEventListener("click", (e) => {
+  const showing = $("code").type === "text";
+  $("code").type = showing ? "password" : "text";
+  e.currentTarget.textContent = showing ? "แสดง" : "ซ่อน";
+  e.currentTarget.setAttribute("aria-pressed", String(!showing));
+});
+
+$("login-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const button = e.currentTarget.querySelector("[type=submit]");
+  button.disabled = true;
+  $("login-msg").textContent = "";
+  const code = $("code").value;
+  const check = await api({ action: "admin_check", secret: code });
+  const list = check.ok ? await api({ action: "questions" }) : check;
+  button.disabled = false;
+  if (!Array.isArray(list.questions)) {
+    $("login-msg").textContent = errorText(list);
+    return;
+  }
+  secret = code;
+  $("code").value = "";
+  questions = list.questions;
+  $("login").hidden = true;
+  $("editor").hidden = false;
+  $("save-bar").hidden = false;
+  renderAll();
+});
+
+// ---------- drawing ----------
+
+function renderList() {
+  $("question-count").textContent = `(${questions.length} ข้อ)`;
+  const rows = questions.map((q, i) => {
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = q.question || "(คำถามใหม่)";
+    const small = document.createElement("small");
+    small.textContent = `${q.items.length} คำตอบ`;
+    b.append(small);
+    b.setAttribute("aria-current", String(i === current));
+    b.addEventListener("click", () => {
+      current = i;
+      renderAll();
+      // on a narrow screen the editor is below the list
+      if (matchMedia("(max-width: 859px)").matches) $("question-panel").scrollIntoView();
+    });
+    li.append(b);
+    return li;
+  });
+  $("question-list").replaceChildren(...rows);
+}
+
+function renderCounts() {
+  const n = questions[current].items.length;
+  $("item-count").textContent = `(${n})`;
+  $("short-list").hidden = n >= ENOUGH_ITEMS;
+  $("add-item").disabled = n >= MAX_ITEMS;
+}
+
+function itemRow(item, i, items) {
+  const li = document.createElement("li");
+  li.className = "item";
+
+  const rank = document.createElement("span");
+  rank.className = "rank";
+  rank.textContent = i + 1;
+
+  const name = document.createElement("input");
+  name.value = item.name;
+  name.maxLength = 100;
+  name.placeholder = "ชื่อคำตอบ";
+  name.setAttribute("aria-label", `ชื่อคำตอบอันดับ ${i + 1}`);
+  name.addEventListener("input", () => {
+    item.name = name.value;
+    markDirty();
+  });
+
+  const aliases = document.createElement("input");
+  aliases.className = "aliases";
+  aliases.value = (item.aliases || []).join(", ");
+  aliases.placeholder = "ชื่ออื่น";
+  aliases.setAttribute("aria-label", `ชื่ออื่นของอันดับ ${i + 1}`);
+  aliases.addEventListener("input", () => {
+    item.aliases = aliases.value.split(",").map((a) => a.trim()).filter(Boolean);
+    markDirty();
+  });
+
+  const moves = document.createElement("div");
+  moves.className = "moves";
+  const button = (text, label, act) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = text;
+    b.setAttribute("aria-label", label);
+    b.addEventListener("click", act);
+    moves.append(b);
+    return b;
+  };
+  const move = (to) => {
+    items.splice(to, 0, items.splice(i, 1)[0]);
+    markDirty();
+    renderItems();
+    $("items").children[to].querySelector("input").focus();
+  };
+  button("▲", `เลื่อนอันดับ ${i + 1} ขึ้น`, () => move(i - 1)).disabled = i === 0;
+  button("▼", `เลื่อนอันดับ ${i + 1} ลง`, () => move(i + 1)).disabled = i === items.length - 1;
+  const remove = button("✕", `ลบอันดับ ${i + 1}`, () => {
+    items.splice(i, 1);
+    markDirty();
+    renderItems();
+    renderList();
+  });
+  remove.classList.add("danger");
+
+  li.append(rank, name, aliases, moves);
+  return li;
+}
+
+function renderItems() {
+  const items = questions[current].items;
+  $("items").replaceChildren(...items.map((item, i) => itemRow(item, i, items)));
+  renderCounts();
+}
+
+function renderAll() {
+  const empty = questions.length === 0;
+  $("question-panel").hidden = empty;
+  renderList();
+  if (empty) return;
+  const q = questions[current];
+  $("q-text").value = q.question;
+  $("q-source").value = q.source || "";
+  renderItems();
+  $("delete-question").disabled = questions.length === 1;
+}
+
+// ---------- changes ----------
+
+$("q-text").addEventListener("input", (e) => {
+  questions[current].question = e.target.value;
+  markDirty();
+  renderList();
+});
+
+$("q-source").addEventListener("input", (e) => {
+  questions[current].source = e.target.value;
+  markDirty();
+});
+
+$("add-question").addEventListener("click", () => {
+  questions.push({ question: "", items: [{ name: "", aliases: [] }] });
+  current = questions.length - 1;
+  markDirty();
+  renderAll();
+  $("q-text").focus();
+});
+
+$("add-item").addEventListener("click", () => {
+  const items = questions[current].items;
+  items.push({ name: "", aliases: [] });
+  markDirty();
+  renderItems();
+  renderList();
+  $("items").lastElementChild.querySelector("input").focus();
+});
+
+$("delete-question").addEventListener("click", () => {
+  $("confirm-text").textContent = questions[current].question || "(คำถามใหม่)";
+  $("confirm-delete").showModal();
+});
+
+$("confirm-delete").addEventListener("close", (e) => {
+  const choice = e.target.returnValue;
+  e.target.returnValue = "";
+  if (choice !== "delete") return;
+  questions.splice(current, 1);
+  current = Math.min(current, questions.length - 1);
+  markDirty();
+  renderAll();
+});
+
+$("save").addEventListener("click", async () => {
+  const button = $("save");
+  button.disabled = true;
+  setMessage("กำลังบันทึก…");
+  // rows left completely blank are not answers
+  const list = questions.map((q) => ({
+    ...q,
+    items: q.items.filter((it) => it.name.trim() !== "" || (it.aliases || []).length > 0),
+  }));
+  const r = await api({ action: "admin_save", secret, questions: list });
+  button.disabled = false;
+  if (!r.ok) {
+    setMessage(errorText(r), "bad");
+    return;
+  }
+  questions = list;
+  dirty = false;
+  renderAll();
+  setMessage(`บันทึกแล้ว ${r.count} ข้อ`, "good");
+});
+
+window.addEventListener("beforeunload", (e) => {
+  if (dirty) e.preventDefault();
+});
+</script>
+</body>
+</html>

@@ -10,6 +10,7 @@ const PORT = Number(process.argv[2]) || 8060;
 const WEB = path.join(__dirname, "..", "web");
 process.env.KV_REST_API_URL = `http://127.0.0.1:${PORT}/_redis`;
 process.env.KV_REST_API_TOKEN = "local";
+process.env.ADMIN_CODE = process.env.ADMIN_CODE || "local-test"; // this server only, for web/admin.html
 const room = require(path.join(WEB, "api", "room.js"));
 
 // --- the Redis commands room.js uses ---
@@ -39,6 +40,7 @@ const run = ([cmd, ...a]) => {
     case "ZADD": { const z = live(a[0])?.v || new Map(); z.set(a[2], Number(a[1])); store.set(a[0], { v: z, exp: live(a[0])?.exp || 0 }); return 1; }
     case "ZREMRANGEBYSCORE": { const z = live(a[0])?.v; if (z) for (const [m, s] of z) if (s >= Number(a[1]) && s <= Number(a[2])) z.delete(m); return 1; }
     case "ZCARD": return live(a[0])?.v.size || 0;
+    case "INCR": { const n = Number(live(a[0])?.v || 0) + 1; store.set(a[0], { v: String(n), exp: live(a[0])?.exp || 0 }); return n; }
     case "DEL": a.forEach((k) => store.delete(k)); return 1;
   }
   throw new Error("unsupported " + cmd);
@@ -66,7 +68,7 @@ http.createServer(async (req, res) => {
     };
     let body = {};
     try { body = JSON.parse(raw || "{}"); } catch (e) {}
-    return room({ method: req.method, body }, shim);
+    return room({ method: req.method, body, headers: req.headers }, shim);
   }
   if (url === "/dual.html") {  // two copies of the game on one page (both keep running)
     res.setHeader("Content-Type", "text/html");

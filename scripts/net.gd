@@ -43,6 +43,7 @@ const POLL_IN_GAME_MS := 3000  # host: spectators can still get in; keeps the ro
 const MAX_WATCHERS := 4
 var _who := ""
 const CONNECT_TIMEOUT := 20.0
+const FORFEIT_SECONDS := 0.3  # guest leaving: time for the word to reach the host before the connection closes
 const LOAD_TIMEOUT := 15.0  # host: start without a guest whose table hasn't opened by then
 const SNAPSHOT_SECONDS := 0.25  # host: the clocks are re-sent this often
 const ENET_PORT := 24680
@@ -619,8 +620,9 @@ func _on_peer_disconnected(id: int) -> void:
 		return
 	var who: String = seats[i]["name"]
 	if in_game and _game:
+		if _game.players[i].alive:  # a lost connection; leaving on purpose is a forfeit
+			_game._log("[color=#e0a070]%s หลุดจากเกม · บอทเล่นแทน[/color]" % who)
 		_game.players[i].is_bot = true  # a bot plays on for them
-		_game._log("[color=#e0a070]%s หลุดจากเกม · บอทเล่นแทน[/color]" % who)
 		_loaded[id] = true
 		if _guest_ids().all(func(g: int) -> bool: return _loaded.has(g)):
 			game_ready.emit()
@@ -703,6 +705,9 @@ func _rx(d: Dictionary) -> void:
 func _host_rx(from: int, d: Dictionary) -> void:
 	var i := _seat_of(from)
 	match d.get("t"):
+		"forfeit":
+			if i >= 0 and in_game and _game:
+				_game.forfeit(_game.players[i])
 		"watch":
 			if not in_game or _game == null:
 				_send(from, {"t": "refused", "why": "over"})
@@ -919,6 +924,12 @@ func _host_action(i: int, name: String, a: Array) -> void:
 
 
 # ---------- the game, guest side ----------
+
+## Guest: leaving on purpose. You lose at once on the host's table; call leave() after this.
+func forfeit() -> void:
+	_send(1, {"t": "forfeit"})
+	await get_tree().create_timer(FORFEIT_SECONDS).timeout
+
 
 ## Guest: the table's game becomes a mirror of the host's. `begin` runs once the host's game
 ## has arrived (the table is then set up from it).

@@ -673,8 +673,8 @@ func _resolve_attack(a: PlayerData, t: PlayerData, defended: bool) -> void:
 		_eliminate(t, a)
 
 
-## `t` is out: knocked out by `by` (null: no one, e.g. a test).
-func _eliminate(t: PlayerData, by: PlayerData) -> void:
+## `t` is out: knocked out by `by` (null: no one, e.g. a test), or for `why` instead.
+func _eliminate(t: PlayerData, by: PlayerData, why := "ช่วงชี้ขาด") -> void:
 	if by:
 		by.kills += 1
 	t.alive = false
@@ -682,12 +682,37 @@ func _eliminate(t: PlayerData, by: PlayerData) -> void:
 	discard.append_array(t.hand)
 	t.hand.clear()
 	t.statuses.clear()
-	_log("[color=#ff6b6b][b]%s ตกรอบ![/b] (%s)[/color]" % [t.display_name, "โดย " + by.display_name if by else "ช่วงชี้ขาด"])
+	_log("[color=#ff6b6b][b]%s ตกรอบ![/b] (%s)[/color]" % [t.display_name, "โดย " + by.display_name if by else why])
 	if is_human(t) and not alive_players().any(func(q: PlayerData) -> bool: return is_human(q)):
 		speed = maxf(speed, SPECTATE_SPEED)  # no one left to play: the bots finish it quickly
 	var left := alive_players()
 	if left.size() == 1:
 		_finish(left[0], "เหลือรอดคนสุดท้าย")
+
+
+## `p` left the game: they lose at once and stay ranked on what they had by then.
+func forfeit(p: PlayerData) -> void:
+	if finished or not p.alive:
+		return
+	if not pending_attack.is_empty() and p.seat in [int(pending_attack["attacker"]), int(pending_attack["target"])]:
+		pending_attack = {}
+	if minigame != null:
+		minigame.remove_seat(p.seat)
+	_eliminate(p, null, "ออกจากเกม")
+	if finished:
+		return
+	if minigame != null:
+		_bot_wait = rng.randf_range(1.0, 1.8)
+		if minigame.done() and _minigame_close <= 0.0:
+			_finish_minigame()
+		minigame_changed.emit()
+	if current() == p:
+		if minigame != null or in_opening():  # their turn hadn't begun: it goes to the next player
+			while not current().alive:
+				turn_index = (turn_index + 1) % order.size()
+		else:
+			_end_turn()
+	state_changed.emit()
 
 
 func _finish(winner: PlayerData, why: String) -> void:

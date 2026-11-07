@@ -16,6 +16,7 @@ func _initialize() -> void:
 	test_minigame_scoring()
 	test_minigame_flow()
 	test_minigame_questions()
+	test_forfeit()
 	test_bot_curses()
 	test_result_order()
 	test_buy_with_full_hand()
@@ -322,6 +323,61 @@ func test_minigame_questions() -> void:
 	var seed_file := ProjectSettings.globalize_path("res://web/api/questions_seed.json")
 	check(FileAccess.get_file_as_string(seed_file) == FileAccess.get_file_as_string(Minigame.PATH),
 		"the database's first fill (web/api/questions_seed.json) matches data/minigame_ranks.json")
+
+
+func test_forfeit() -> void:
+	var g := new_game()
+	var p := g.players[0]
+	p.rings = 2
+	p.shards = 1
+	p.kills = 1
+	p.damage = 3
+	p.hand.append(CardDB.get_card("attack"))
+	g.forfeit(p)
+	check(not p.alive and p.hp == 0 and p.hand.is_empty(), "leaving: out at once, cards gone")
+	check(p.rings == 2 and p.shards == 1 and p.kills == 1 and p.damage == 3, "what they had earned still counts")
+	check(g.current() == g.players[1] and g.step == GameController.Step.ROLL, "their turn passes to the next player")
+	check(not g.finished, "the others play on")
+	g.forfeit(p)
+	check(g.alive_players().size() == 3, "leaving twice changes nothing")
+	var ranked := ResultPanel.standings(g, 1)
+	check(ranked[-1] == p, "ranked with those knocked out")
+
+	g = new_game()
+	g.pending_attack = {"attacker": 1, "target": 0, "time": 5.0}
+	g.turn_index = 1
+	g.forfeit(g.players[0])
+	check(g.pending_attack.is_empty() and g.current() == g.players[1], "an attack on them is dropped, the attacker's turn goes on")
+	g = new_game()
+	g.pending_attack = {"attacker": 0, "target": 1, "time": 5.0}
+	g.forfeit(g.players[0])
+	check(g.pending_attack.is_empty() and g.current() == g.players[1], "their own attack is dropped too")
+
+	g = new_game()
+	g._start_minigame()
+	g.turn_index = 1  # the next turn, once the minigame closes
+	var mg := g.minigame
+	mg.seats.assign([0, 1, 2, 3])
+	mg.turn = 1
+	g.forfeit(g.players[1])
+	check(mg.seats == ([0, 2, 3] as Array[int]) and mg.current_seat() == 2, "minigame: their answer turn passes on")
+	check(g.current() == g.players[2], "the next turn skips them too")
+	g.forfeit(g.players[3])
+	check(mg.seats == ([0, 2] as Array[int]) and not g.finished, "minigame goes on without them")
+	g.forfeit(g.players[2])
+	check(g.finished and g.players[0].alive, "the last one left wins")
+
+	g = new_game()
+	g._opening = 5.0
+	g.forfeit(g.players[0])
+	check(g.current() == g.players[1] and g.in_opening(), "leaving during the opening: the first turn goes to the next player")
+
+	var two := Minigame.new({"question": "q", "items": [{"name": "a"}]}, [0, 1] as Array[int])
+	two.submit("")
+	two.submit("")
+	two.submit("")
+	two.remove_seat(1)  # the last answer of the round was theirs
+	check(two.round_no == 3 and two.current_seat() == 0, "leaving on the last turn of a round starts the next")
 
 
 func test_bot_curses() -> void:

@@ -86,6 +86,7 @@ var _dying_cards: Dictionary = {}  # seat -> cards in hand when the killing blow
 var move_label: Label  # the attack's move name, flashed at the top of the table
 var _select: CharacterSelect
 var _loading: CanvasLayer  # covers the table until the 3D room has been drawn
+var _menu_box: Control  # settings or "leave the game?", while one is up
 var _loading_since := 0
 
 
@@ -179,6 +180,7 @@ func _start(my_id: String) -> void:
 	_build_minigame_and_result()
 	if game.watching:
 		_build_watching()
+	_build_settings()
 	_hide_loading()
 	# connected after the UI exists; the first turn starts once the opening roll-off is shown
 	game.turn_started.connect(_on_turn_started)
@@ -543,6 +545,7 @@ func _show_loading() -> void:
 	bg.color = Color(0.06, 0.04, 0.03)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	bg.theme = theme  # a CanvasLayer doesn't pass on the table's theme: its Thai font
 	_loading.add_child(bg)
 	var title := Label.new()
 	title.text = "Roulette Fantasy"
@@ -611,10 +614,127 @@ func _build_watching() -> void:
 	var out := _brass_button(Vector2(960 - MARGIN - 148, 466), Vector2(148, 58))
 	out.add_theme_font_size_override("font_size", 19)
 	out.text = "ออกจากการชม"
-	out.pressed.connect(func() -> void:
-		NetPlay.node().leave()
-		MainMenu.start_screen = "find"
-		get_tree().change_scene_to_file(NetPlay.MENU_SCENE))
+	out.pressed.connect(_leave_table.bind("find"))
+
+
+## Top left, opposite the full screen button: the settings of a game in progress.
+func _build_settings() -> void:
+	var b := _brass_button(Vector2(MARGIN, 17 + 44 + 8), Vector2(44, 44))
+	b.icon = Icons.get_icon("gear")
+	b.add_theme_constant_override("icon_max_width", 22)
+	b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	b.focus_mode = Control.FOCUS_NONE
+	b.tooltip_text = "ตั้งค่า"
+	b.pressed.connect(func() -> void:
+		sfx.play("select")
+		_open_settings())
+
+
+## A box in the middle of the screen, over everything (the result screen too, if the game ends
+## meanwhile); returns the box to fill. Replaces the one that's up.
+func _open_box(title: String) -> VBoxContainer:
+	if _menu_box:
+		_menu_box.queue_free()
+	PhoneField.paused = true  # the phone's answer box sits on top of the game
+	_menu_box = Control.new()
+	_menu_box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_menu_box.z_index = 110
+	add_child(_menu_box)
+	var veil := ColorRect.new()
+	veil.color = Color(0, 0, 0, 0.6)
+	veil.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_menu_box.add_child(veil)
+	var box_size := Vector2(400, 170)
+	var p := MenuUi.panel((Vector2(960, 540) - box_size) / 2, box_size, MenuUi.GOLD)
+	_menu_box.add_child(p)
+	p.resized.connect(func() -> void: p.position = (Vector2(960, 540) - p.size) / 2)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 14)
+	p.add_child(box)
+	var head := MenuUi.label(title, 20, MenuUi.GOLD)
+	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(head)
+	return box
+
+
+func _box_buttons(box: VBoxContainer) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 12)
+	box.add_child(row)
+	return row
+
+
+func _box_button(row: HBoxContainer, text: String, on_press: Callable) -> void:
+	var b := MenuUi.small_button(text, "", 140)
+	b.pressed.connect(on_press)
+	row.add_child(b)
+
+
+## Sound, and the way out: for anyone at the table, players and spectators.
+func _open_settings() -> void:
+	var box := _open_box("ตั้งค่า")
+	var volume := HBoxContainer.new()
+	volume.alignment = BoxContainer.ALIGNMENT_CENTER
+	volume.add_theme_constant_override("separation", 10)
+	box.add_child(volume)
+	volume.add_child(MenuUi.label("ระดับเสียง", 15))
+	var slider := HSlider.new()
+	slider.min_value = 0
+	slider.max_value = 100
+	slider.value = roundf(GameConfig.sfx_volume * 100)
+	slider.custom_minimum_size = Vector2(180, 30)
+	volume.add_child(slider)
+	var percent := MenuUi.label("%d%%" % slider.value, 14)
+	percent.custom_minimum_size = Vector2(44, 0)
+	volume.add_child(percent)
+	slider.value_changed.connect(func(v: float) -> void:
+		percent.text = "%d%%" % v
+		GameConfig.sfx_volume = v / 100.0
+		GameConfig.apply_volume())
+	slider.drag_ended.connect(func(_changed: bool) -> void:
+		GameConfig.save_settings()
+		sfx.play("select"))
+	var row := _box_buttons(box)
+	_box_button(row, "ปิด", _close_box)
+	_box_button(row, "ออกจากการชม" if game.watching else "ออกจากเกม", _ask_exit)
+
+
+## Asks first: a slip of the finger shouldn't end the game, least of all a host's.
+func _ask_exit() -> void:
+	var leave_text := "ออกจากการชม" if game.watching else "ออกจากเกม"
+	var box := _open_box(leave_text + "?")
+	var net := NetPlay.node()
+	var note := "เกมนี้จะจบทันที"
+	if game.watching:
+		note = "กลับไปหน้าค้นหาห้อง"
+	elif net.is_host():
+		note = "คุณเป็นหัวห้อง ถ้าออก เกมจะจบสำหรับทุกคน"
+	elif net.is_guest():
+		note = "คุณจะแพ้ทันที และได้อันดับตามผลงานตอนที่ออก"
+	var text := MenuUi.label(note, 15)
+	text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(text)
+	var row := _box_buttons(box)
+	_box_button(row, "ชมต่อ" if game.watching else "เล่นต่อ", _close_box)
+	_box_button(row, leave_text, _leave_table.bind("find" if game.watching else "home"))
+
+
+func _close_box() -> void:
+	PhoneField.paused = false
+	if _menu_box:
+		_menu_box.queue_free()
+		_menu_box = null
+
+
+func _leave_table(screen: String) -> void:
+	_close_box()
+	var net := NetPlay.node()
+	if net.is_guest() and not game.watching:
+		await net.forfeit()
+	net.leave()
+	MainMenu.start_screen = screen
+	get_tree().change_scene_to_file(NetPlay.MENU_SCENE)
 
 
 # ---------- building the screen ----------

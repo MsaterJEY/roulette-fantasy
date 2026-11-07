@@ -223,3 +223,6 @@ table. The title "Roulette Fantasy" stays for now.
 - The second "ฟื้นเกราะ 1/2" pair (cleanse a curse + 1 shield) is named **Cleanse 1 / Cleanse all**.
 - "coin" and "บาท" are the same currency: **gold**.
 - Ring exchange rate: 2 shards (spec said 3; lowered for a ~20 min game, see Balance).
+
+## Leaving a game (2026-11-07)
+The table's settings button (top left) has the way out, for players and spectators. A guest who leaves loses at once: out of the game, ranked on what they had, stats stop there. The host leaving ends the game for everyone (their browser runs it). A lost connection is not a forfeit: a bot plays on.

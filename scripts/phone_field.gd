@@ -6,6 +6,9 @@ extends Node
 ## keeps the text, so the game reads it as usual; Enter submits it. Add it as a child of
 ## anything once `wanted()`.
 
+## Hides the box while something is shown over the game (it would sit on top of that).
+static var paused := false
+
 var edit: LineEdit
 var _text := ""
 var _box := Rect2()
@@ -38,7 +41,7 @@ func _exit_tree() -> void:
 
 
 func _process(_delta: float) -> void:
-	var show := edit.is_visible_in_tree()
+	var show := edit.is_visible_in_tree() and not paused
 	if show != _shown:
 		_shown = show
 		_box = Rect2()

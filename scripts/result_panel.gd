@@ -73,10 +73,6 @@ func _ready() -> void:
 	var menu := MenuUi.big_button("", "กลับหน้าหลัก", "", false, 164)
 	menu.pressed.connect(_to_menu.bind("home"))
 	right.add_child(menu)
-	var quit := MenuUi.small_button("ออกจากเกม", "", 164)
-	quit.pressed.connect(func() -> void:  # through the sound player, so it quits cleanly
-		get_tree().root.propagate_notification(NOTIFICATION_WM_CLOSE_REQUEST))
-	right.add_child(quit)
 
 
 ## Winner first, then the living by rings, shards and HP, then those knocked out.

@@ -3,7 +3,7 @@ extends SceneTree
 ## Run with --write-movie to capture frames. Add `-- noshop` to leave the shop closed,
 ## `-- toast` to show the "your turn" text instead of the shop, `-- hint` for why a clicked card can't be played, `-- roll` to throw the dice,
 ## `-- fx` for a full hand (one card lifted) plus a blocked and a landed attack.
-## `-- throw` for thrown cards and a hurt face, `-- target` for picking an attack target (bots glow, history open), `-- self` / `-- selfblind` for effects on you (hit / block while blind), `-- replace` for buying with a full hand (pick a card to swap out), `-- minigame` for the minigame on your turn (a few answers in), `-- result` for the end screen, `-- defend` for the defense prompt when a bot attacks you, `-- dicetip` for the dice scoring tip.
+## `-- throw` for thrown cards and a hurt face, `-- target` for picking an attack target (bots glow, history open), `-- self` / `-- selfblind` for effects on you (hit / block while blind), `-- replace` for buying with a full hand (pick a card to swap out), `-- minigame` for the minigame on your turn (a few answers in), `-- result` for the end screen, `-- defend` for the defense prompt when a bot attacks you, `-- dicetip` for the dice scoring tip, `-- settings` for the settings box, `-- exit` for the "leave the game?" box.
 
 var table: Node
 var frames := 0
@@ -122,6 +122,10 @@ func _process(_delta: float) -> bool:
 			me.statuses.clear()
 			g.state_changed.emit()
 			g.attack_incoming.emit(1, 0)
+		elif "exit" in args:
+			table._ask_exit()
+		elif "settings" in args:
+			table._open_settings()
 		elif "dicetip" in args:
 			table.dice_tip.visible = true
 		elif "toast" in args:

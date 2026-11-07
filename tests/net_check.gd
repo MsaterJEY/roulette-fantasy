@@ -2,10 +2,12 @@ extends SceneTree
 ## Online play over ENet on this machine: run two copies at once, with RF_NET=enet set,
 ##   -- host    and    -- guest
 ## The host opens a 3-seat room, the guest joins and both play their own turns (attacks when
-## they can, blocks, minigame passes); then the guest leaves and a bot takes over its seat.
+## they can, blocks, minigame passes); then the guest leaves and a bot takes over its seat
+## (add `forfeit` on both sides: the guest leaves on purpose and loses at once instead).
 ## Each prints NETCHECK OK or NETCHECK FAIL with the reasons.
 
 const RUN_SECONDS := 70.0  # real seconds of play (the game runs at Engine.time_scale)
+const FORFEIT_AT := 30.0  # with `forfeit`: early, while the guest is still in the game
 
 var args := OS.get_cmdline_user_args()
 var host := "host" in args
@@ -13,6 +15,7 @@ var net: NetPlay
 var started := false
 var t := 0.0
 var act_wait := 0.0
+var leave_at := 0.0  # guest with `forfeit`: when the word has gone out
 var fails: Array[String] = []
 var seen := {"my_turns": 0, "my_plays": 0, "rounds": 1, "hidden_ok": true, "others_draw_lines": 0, "dropped": false, "logs": 0}
 
@@ -68,10 +71,14 @@ func _process(delta: float) -> bool:
 	_play(g, delta)
 	if host and seen["dropped"] and t > RUN_SECONDS + 25.0:
 		return _report(g)
-	if not host and t > RUN_SECONDS:
-		_report(g)
-		net.leave()
-		return true
+	if not host and t > (FORFEIT_AT if "forfeit" in args else RUN_SECONDS):
+		if "forfeit" in args and leave_at == 0.0:
+			net.forfeit()
+			leave_at = t + NetPlay.FORFEIT_SECONDS + 0.2
+		if t >= leave_at:
+			_report(g)
+			net.leave()
+			return true
 	if host and t > RUN_SECONDS + 40.0:
 		return _report(g)
 	return false
@@ -130,7 +137,7 @@ func _on_log(line: String) -> void:
 	seen["logs"] += 1
 	if line.contains("จั่วการ์ด") and line.contains("ใบ"):
 		seen["others_draw_lines"] += 1
-	if line.contains("หลุดจากเกม"):
+	if line.contains("หลุดจากเกม") or line.contains("ออกจากเกม"):
 		seen["dropped"] = true
 
 
@@ -143,7 +150,7 @@ func _fail_now(why: String) -> bool:
 func _report(g: GameController) -> bool:
 	if seen["my_turns"] < 2:
 		fails.append("only %d of my turns" % seen["my_turns"])
-	if seen["rounds"] < 3:
+	if seen["rounds"] < (2 if "forfeit" in args else 3):  # `forfeit` stops early
 		fails.append("only reached round %d" % seen["rounds"])
 	if seen["logs"] < 10:
 		fails.append("few log lines (%d)" % seen["logs"])
@@ -156,7 +163,9 @@ func _report(g: GameController) -> bool:
 			fails.append("seat 0 is %s, not me" % g.players[0].display_name)
 	elif not seen["dropped"]:
 		fails.append("guest leaving was not noticed")
-	print("seen: ", seen)
+	elif "forfeit" in args and g.players[1].alive:
+		fails.append("guest left but was not out")
+	print("seen: ", seen, " alive: ", g.players.map(func(p: PlayerData) -> bool: return p.alive), " finished: ", g.finished)
 	print("NETCHECK %s (%s)%s" % ["OK" if fails.is_empty() else "FAIL", "host" if host else "guest",
 		"" if fails.is_empty() else ": " + "; ".join(fails)])
 	return true

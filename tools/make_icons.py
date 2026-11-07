@@ -279,6 +279,17 @@ def flame_claw():
     return img
 
 
+def gear():
+    img, d = new()
+    d.rectangle((6, 1, 9, 14), fill=WHITE)
+    d.rectangle((1, 6, 14, 9), fill=WHITE)
+    for x, y in ((2, 2), (11, 2), (2, 11), (11, 11)):
+        d.rectangle((x, y, x + 2, y + 2), fill=WHITE)
+    d.ellipse((3, 3, 12, 12), fill=WHITE)
+    d.ellipse((6, 6, 9, 9), fill=(0, 0, 0, 0))
+    return img
+
+
 ICONS = {
     "attack": attack, "defense": defense, "heal_1": heal(1), "heal_2": heal(2),
     "gain_defense": gain_defense, "cleanse_1": cleanse(1), "cleanse_all": cleanse(3),
@@ -286,7 +297,7 @@ ICONS = {
     "blind": blind, "free_block": free_block,
     # HUD: dice roll, shop, combat, rings, shards, hand size, minigame, turn marker
     "dice": dice, "shop": shop, "swords": swords, "ring": ring, "shard": shard, "cards": cards,
-    "star": star, "turn": turn, "fullscreen": lambda: corners(False), "windowed": lambda: corners(True),
+    "star": star, "turn": turn, "gear": gear, "fullscreen": lambda: corners(False), "windowed": lambda: corners(True),
     # character weapons (each character's Attack card)
     "blood_sword": blood_sword, "arcane_sword": arcane_sword, "thorn_bow": thorn_bow,
     "flame_claw": flame_claw,

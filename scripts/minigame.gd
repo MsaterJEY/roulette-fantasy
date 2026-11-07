@@ -134,6 +134,22 @@ func submit(text: String) -> Dictionary:
 	return entry
 
 
+## `seat` has left: no more turns and no reward. What they answered stays taken.
+func remove_seat(seat: int) -> void:
+	var i := seats.find(seat)
+	if i < 0 or done():
+		return
+	seats.remove_at(i)
+	scores.erase(seat)
+	if i < turn:
+		turn -= 1
+	elif i == turn:
+		time_left = ANSWER_SECONDS
+		if turn >= seats.size():
+			turn = 0
+			round_no += 1
+
+
 ## Final standings: [{"seat", "score", "place", "shards", "gold"}], best first.
 ## Equal scores share the place (and its reward).
 func results() -> Array[Dictionary]:
